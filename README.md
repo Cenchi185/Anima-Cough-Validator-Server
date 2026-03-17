@@ -1,4 +1,5 @@
 # ANIMA 프로젝트 통합 설계 문서
+(마지막 수정 2026/3/17)
 
 ## 0. 개요
 
@@ -12,6 +13,15 @@
 - 기침 이상도 분석 (정상 대비)
 - 결과 리포트 제공
 - 기록 저장 및 히스토리 조회
+
+### 0.3 설계 원칙 (음성 처리)
+본 서버는 다양한 사용자 입력 환경을 고려하여  
+업로드된 원본 파일을 직접 검증하지 않고,  
+ffmpeg를 통해 표준 포맷으로 변환한 뒤  
+변환된 결과를 기준으로 validation(유효성 검사)을 수행한다.
+
+이를 통해 입력 파일 형식에 대한 의존성을 줄이고,  
+모델 입력의 일관성을 유지한다.
 
 ---
 
@@ -140,78 +150,11 @@
 ## 5. 모델 입출력 규격
 
 ### 5.1 입력
-ㅁ### 3.1 음성 분석
-
-#### POST /analyze
-
-**Request**
-```json
-{
-  "file": "...",
-  "user_id": "user123",
-  "pain_score": 3,
-  "cough_count": 5
-}
-```
-**Response**
-
-```json
-{
-  "ok": true,
-  "is_cough": true,
-  "cough_confidence": 0.92,
-  "quality_score": 0.85,
-  "deviation_score": 72,
-  "report_text": "평균보다 기침 패턴이 다소 불안정합니다.",
-  "graph_data": [0.1, 0.3, 0.8]
-}
-```
-
-### 3.2 기록 조회
-
-#### GET /records
-
-### 3.3 상세 조회
-
-#### GET /records/{id}
-
----
-
-## 4. DB 설계
-
-### 4.1 users
-| 컬럼 | 타입 |
-|------|------|
-| id | varchar |
-| created_at | datetime |
-
-### 4.2 cough_records
-| 컬럼 | 타입 |
-|------|------|
-| id | int |
-| user_id | varchar |
-| audio_path | text |
-| created_at | datetime |
-
-### 4.3 analysis_results
-| 컬럼 | 타입 |
-|------|------|
-| record_id | int |
-| is_cough | bool |
-| confidence | float |
-| deviation_score | float |
-| report_text | text |
-
----
-
-## 5. 모델 입출력 규격
-
-### 5.1 입력
-- 샘플레이트 : 16000Hz
-- 길이 : 1.5초
 - 입력 형태 : spectrogram (H,W,1)
+- dtype : float32
 
-### 5.2 출력
+### 5.2 모델 출력
+
 #### 1단계 모델 (기침 여부 판단)
 - 출력 : 확률값 (0~1)
 - threshold : 0.7
@@ -225,12 +168,38 @@
 ---
 
 ## 6. 전처리 흐름
-1. 파일저장
-2. ffmpeg로 포멧 변환
-3. 샘플레이트 통일
-4. 길이 조정 (pad / crop)
-5. spectogram 생성
-6. 모델 입력 변환
+
+### 6.1 오디오 표준 포맷
+
+모든 입력 오디오는 아래 포맷으로 변환한다.
+- format : wav
+- codec : pcm_s16le
+- sample_rate : 16000Hz
+- channels : 1 (mono)
+
+### 6.2 처리 단계 (파이프 라인)
+
+1. 파일 저장 (임시 경로)
+2. ffprobe로 원본 파일 검사
+   - audio stream 존재 여부 확인
+
+3. ffmpeg로 표준 포맷 변환
+   - wav (pcm_s16le)
+   - 16000Hz
+   - mono
+
+4. ffprobe로 변환 결과 검증
+   - sample_rate
+   - channels
+   - duration
+
+5. validation 수행
+   - 최소 길이 검사
+   - 손상 여부 확인
+     
+6. 길이 조정 (pad / crop)
+7. spectrogram 생성
+8. 모델 입력 변환
 
 ---
 
@@ -247,14 +216,16 @@
 - 예시 :
   - 낮음 -> "안정적인 상태입니다."
   - 중간 -> "주의가 필요합니다."
-  - 높음 -> "이상패턴이 감지되었습니다."
+  - 높음 -> "이상 패턴이 감지되었습니다."
 
 ---
 
 ## 8. 에러처리
 | 코드 | 상황 |
 |------|------|
-| invaild_file | 파일 오류 |
+| invalid_file | 오디오 스트림 없음 |
+| conversion_failed | ffmpeg 변환 실패 |
+| invalid_audio | 변환 후 스펙 불일치 |
 | too_short | 길이 부족 |
 | not_cough | 기침 아님 |
 | server_error | 서버 오류 |
