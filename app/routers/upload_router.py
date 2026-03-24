@@ -46,7 +46,7 @@ async def upload_file(file: UploadFile = File(...)):
             safe_unlink(saved_path) # safe_unlink 는 검증에 실패하면 파일을 삭제함
             raise HTTPException(status_code=400, detail=f"오디오가 아니거나 분석할 수 없음")
 
-    # 변환 검증
+        # 변환 검증
         try:
             convert_audio_to_wav(str(saved_path), str(wav_path))
         except Exception:
@@ -54,7 +54,7 @@ async def upload_file(file: UploadFile = File(...)):
             safe_unlink(wav_path)
             raise HTTPException(status_code=400, detail=f"WAV 변환 실패")
 
-    # 변환 후 파일 검증
+        # 변환 후 파일 검증
         try:
             wav_audio_info = probe_audio(str(wav_path))
         except Exception:
@@ -62,7 +62,7 @@ async def upload_file(file: UploadFile = File(...)):
             safe_unlink(wav_path)
             raise HTTPException(status_code=400, detail="변환된 WAV 분석 실패")
 
-    # 변환된 wav 파일로 기침 검증
+        # 변환된 wav 파일로 기침 검증
         validation = validate_audio(wav_audio_info, min_duration=1.0)
 
         if not validation["ok"]:
@@ -73,8 +73,8 @@ async def upload_file(file: UploadFile = File(...)):
                                         "reason":validation["reason"],},
                                 )
     
-        x = preprocess_for_model(str(wav_path))
-        prediction = fake_model_predict(x)
+        x = preprocess_for_model(str(wav_path)) # 모델 입력 파라미터 전처리
+        prediction = fake_model_predict(x)  # 가짜 모델
 
         return {
             "ok":True,
