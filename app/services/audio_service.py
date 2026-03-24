@@ -3,7 +3,7 @@ from typing import Tuple
 import json, subprocess, librosa
 import numpy as np
 
-# 업로드 음성 파일 형식 검사
+# 음성파일의 형식을 ffmpeg로 분석
 def probe_audio(file_path : str) -> dict:
     cmd = [
         "ffprobe",
@@ -30,7 +30,7 @@ def convert_audio_to_wav(input_path: str, output_path: str) -> str:
         "-i", input_path,
         "-ac", "1",
         "-ar", "16000",
-        "-acodec", "pcm_sm16le",
+        "-acodec", "pcm_s16le",
         output_path
     ]
 
@@ -54,7 +54,7 @@ def validate_audio(audio_info:dict, min_duration: float = 1.0) -> dict:
 
     except Exception:   # 음성파일 여부 검증
         return {"ok":False, "reason":"unknown_audio_format"}
-    if codec_name != "pcms16le":    # ?
+    if codec_name != "pcm_s16le":    # ?
         return {"ok":False, "reason":"invalid_codec"}
     if sample_rate != 16000:    # 샘플레이트 검증
         return {"ok": False, "reason": "invalid_sample_rate"}
