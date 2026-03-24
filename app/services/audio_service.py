@@ -125,7 +125,9 @@ def preprocess_for_model(
     sr: int = 16000,
     target_hw: Tuple[int, int] = (128, 188),
 ) -> np.ndarray:
-    audio, loaded_sr = librosa.load(wav_path, sr=sr, mono=True)
+    # librosa.load 함수가 2개의 audio_array, sample_rate 2개의 튜플을 반환함
+    # 샘플레이트는 이미 변환을 통해 보정되어 있으므로 검증이 필요 없어서 _ 변수로 무시
+    audio, _ = librosa.load(wav_path, sr=sr, mono=True) 
 
     target_len = int(sr * target_sec)
     audio = pad_or_crop_1d(audio, target_len)
@@ -135,3 +137,13 @@ def preprocess_for_model(
 
     x = make_model_input(spec)
     return x
+
+# 서버 입출력 처리 테스트용 페이크 모델
+def fake_model_predict(x:np.ndarray) -> dict:
+    prob = 0.85
+    return {
+        "is_cough":prob >= 0.7,
+        "prob":prob,
+        "input_shape":list(x.shape),
+        "model":"fake_model"
+    }

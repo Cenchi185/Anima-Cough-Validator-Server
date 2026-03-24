@@ -13,3 +13,7 @@ __pycache__/
 
 # logs
 *.log
+
+# uploaded / converted audio files
+app/data/uploads/
+app/data/converted/
