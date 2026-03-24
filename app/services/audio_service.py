@@ -1,7 +1,15 @@
-from pathlib import Path
 from typing import Tuple
 import json, subprocess, librosa
 import numpy as np
+
+from app.core.config import (
+    TARGET_SR,
+    TARGET_SEC,
+    TARGET_HW,
+    N_FFT,
+    HOP_LENGTH,
+    N_MELS,
+)
 
 # 음성파일의 형식을 ffmpeg로 분석
 def probe_audio(file_path : str) -> dict:
@@ -82,10 +90,10 @@ def pad_or_crop_1d(x: np.ndarray, target_len:int) -> np.ndarray:
 # 여기에 쓰인 매개변수들은 나중에 빼서 따로 관리
 def wav_to_logmel_spectrogram(
     audio: np.ndarray,
-    sr: int = 16000,
-    n_fft: int = 1024,
-    hop_length: int = 128,
-    n_mels: int = 128,
+    sr: int = TARGET_SR,
+    n_fft: int = N_FFT,
+    hop_length: int = HOP_LENGTH,
+    n_mels: int = N_MELS,
 ) -> np.ndarray:
     mel = librosa.feature.melspectrogram(
         y=audio,
@@ -121,9 +129,9 @@ def make_model_input(spec: np.ndarray) -> np.ndarray:
 # 전처리 함수를 하나로 묶어서 실행하고, 입력값을 반환하는 함수
 def preprocess_for_model(
     wav_path: str,
-    target_sec: float = 1.5,
-    sr: int = 16000,
-    target_hw: Tuple[int, int] = (128, 188),
+    target_sec: float = TARGET_SEC,
+    sr: int = TARGET_SR,
+    target_hw: Tuple[int, int] = TARGET_HW,
 ) -> np.ndarray:
     # librosa.load 함수가 2개의 audio_array, sample_rate 2개의 튜플을 반환함
     # 샘플레이트는 이미 변환을 통해 보정되어 있으므로 검증이 필요 없어서 _ 변수로 무시
@@ -137,13 +145,3 @@ def preprocess_for_model(
 
     x = make_model_input(spec)
     return x
-
-# 서버 입출력 처리 테스트용 페이크 모델
-def fake_model_predict(x:np.ndarray) -> dict:
-    prob = 0.85
-    return {
-        "is_cough":prob >= 0.7,
-        "prob":prob,
-        "input_shape":list(x.shape),
-        "model":"fake_model"
-    }

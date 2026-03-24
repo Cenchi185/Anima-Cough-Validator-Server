@@ -9,7 +9,7 @@ os = 그 임시파일을 나중에 삭제
 from fastapi import APIRouter, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 
-from app.services.anima_service import analyze_anima1, analyze_anima2
+from app.services.model_service import analyze_anima1, analyze_anima2
 from app.services.audio_service import probe_wav, convert_to_wav, SR, WIN_SEC, HOP_SEC
 from app.services import model_loader
 from app.core.config import UPLOAD_DIR

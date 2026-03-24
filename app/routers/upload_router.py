@@ -1,20 +1,16 @@
 from pathlib import Path
+from app.core.config import UPLOAD_DIR, CONVERTED_DIR, MIN_DURATION
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from app.services.audio_service import (
     probe_audio,
     convert_audio_to_wav,
     validate_audio,
     preprocess_for_model,
-    fake_model_predict,
 )
+from app.services.prediction_service import predict
 import uuid
 
 router = APIRouter()
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
-UPLOAD_DIR = DATA_DIR / "uploads"      # 업로드 음성 파일 경로
-CONVERTED_DIR = DATA_DIR / "converted" # 변환된 음성 파일 경로
 
 # 음성파일 저장 폴더 생성
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -63,7 +59,7 @@ async def upload_file(file: UploadFile = File(...)):
             raise HTTPException(status_code=400, detail="변환된 WAV 분석 실패")
 
         # 변환된 wav 파일로 기침 검증
-        validation = validate_audio(wav_audio_info, min_duration=1.0)
+        validation = validate_audio(wav_audio_info, min_duration=MIN_DURATION)
 
         if not validation["ok"]:
             safe_unlink(saved_path)
@@ -74,7 +70,7 @@ async def upload_file(file: UploadFile = File(...)):
                                 )
     
         x = preprocess_for_model(str(wav_path)) # 모델 입력 파라미터 전처리
-        prediction = fake_model_predict(x)  # 가짜 모델
+        prediction = predict(x)  # 가짜 모델
 
         return {
             "ok":True,
