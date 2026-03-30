@@ -1,0 +1,38 @@
+{
+  "reference_type": "HEALTHY_REFERENCE",
+  "reference_source": "D:\\anima_data\\processed\\healthy_reference\\tfrecords",
+  "stage1_model_path": "D:\\anima_data\\processed\\final(02_12)\\models_v3\\best_1to1_embed64.keras",
+  "model_version": "best_1to1_embed64",
+  "embedding_version": "embedding_pre_relu_v1",
+  "embedding_dim": 64,
+  "sample_count": 5461,
+  "cough_threshold": 0.6,
+  "use_l2_norm": false,
+  "filter_by_stage1_cough": true,
+  "trim_percentile": 99.0,
+  "reg_ratio": 0.001,
+  "reg_eps": 0.00013628043234348297,
+  "distance_quantiles": {
+    "p50": 5.457507610321045,
+    "p80": 6.583366870880127,
+    "p90": 7.532338619232178,
+    "p95": 8.547204971313477,
+    "p99": 11.11506519317623,
+    "max": 13.912639617919922
+  },
+  "collect_meta": {
+    "total_reference_samples_seen": 5527,
+    "reference_samples_kept": 5517,
+    "filter_by_stage1_cough": true,
+    "cough_threshold": 0.6,
+    "use_l2_norm": false
+  },
+  "trim_info": {
+    "enabled": true,
+    "trim_percentile": 99.0,
+    "before_count": 5517,
+    "after_count": 5461,
+    "used": true,
+    "cutoff": 12.28568649291993
+  }
+}
