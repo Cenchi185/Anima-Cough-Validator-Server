@@ -143,5 +143,22 @@ def preprocess_for_model(
     spec = wav_to_logmel_spectrogram(audio, sr=sr)
     spec = resize_spectrogram(spec, target_hw)
 
+    print("=== preprocess debug ===")
+    print("audio min =", np.min(audio))
+    print("audio max =", np.max(audio))
+    print("audio mean =", np.mean(audio))
+    print("audio len =", len(audio))
+    
+    print("spec shape =", spec.shape)
+    print("spec min =", np.min(spec))
+    print("spec max =", np.max(spec))
+    print("spec mean =", np.mean(spec))
+    print("spec first_row_first5 =", spec[0, :5])
+    
     x = make_model_input(spec)
+    
+    print("x shape =", x.shape)
+    print("x min =", np.min(x))
+    print("x max =", np.max(x))
+    print("x mean =", np.mean(x))
     return x

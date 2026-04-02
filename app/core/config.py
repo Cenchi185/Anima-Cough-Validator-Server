@@ -11,6 +11,7 @@ MODEL_DIR = BASE_DIR / "models"
 # MODEL_PATH = MODEL_DIR / "savedmodel_best_1to1_embed64"
 MODEL_PATH = MODEL_DIR / "best_1to1_embed64.keras"
 
+# 1단계 기침 검증 모델용 변수
 TARGET_SR = 16000
 TARGET_CHANNELS = 1
 MIN_DURATION = 1.0
@@ -23,3 +24,13 @@ HOP_LENGTH = 128
 N_MELS = 128
 
 COUGH_THRESHOLD = 0.6
+
+# 2단계 기침 이상도 판정 기준 파일
+HEALTHY_REF_JSON_PATH = MODEL_DIR / "healthy_ref_final.json"
+HEALTHY_REF_NPZ_PATH = MODEL_DIR / "healthy_ref_final.npz"
+
+# 2단계 기침 이상도 판정용 변수
+NORMAL_MAX_LABEL = "normal_range"
+BORDERELINE_LABEL = "borderline"
+ABNORMAL_HIGH_LABEL = "abnormal_high"
+ABNORMAL_VERY_HIGH_LABEL = "abnormal_very_high"
