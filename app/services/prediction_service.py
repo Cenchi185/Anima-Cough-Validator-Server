@@ -79,23 +79,22 @@ def real_model_predict(model, x: np.ndarray) -> dict:
     emb_model = get_embedding_model()
     ref = get_healthy_reference()
     
-    print("=== healthy ref meta ===")
-    print(ref["meta"])
-    
     if emb_model is None:
         result["stage2"] = {
             "skipped": True,
             "reason": "embedding_model_not_available"
         }
         return result
-
+    
     if ref is None:
         result["stage2"] = {
             "skipped": True,
             "reason": "healthy_reference_not_available"
         }
         return result
-
+    
+    print("=== healthy ref meta ===")
+    print(ref["meta"])
     # embedding 추출
     emb = emb_model.predict(x, verbose=0)
     emb = np.squeeze(emb).astype(np.float32)

@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple,List
 import json, subprocess, librosa
 import numpy as np
 
@@ -8,7 +8,6 @@ from app.core.config import (
     TARGET_HW,
     N_FFT,
     HOP_LENGTH,
-    N_MELS,
 )
 
 # 음성파일의 형식을 ffmpeg로 분석
@@ -80,85 +79,200 @@ def validate_audio(audio_info:dict, min_duration: float = 1.0) -> dict:
         "codec_name":codec_name
     }
 
-# 업로드 음성을 모델에 맞도록 길이 조정
-def pad_or_crop_1d(x: np.ndarray, target_len:int) -> np.ndarray:
-    if len(x) < target_len: # 목표 길이보다 짧으면
-        return np.pad(x, (0, target_len - len(x))) # 패딩을 넣어서 길이를 맞춤
-    return x[:target_len] # 목표 길이보다 길면 앞에서부터 짜름
+# 레퍼런스 맞춤용 전처리 코드
+EVENT_FRAME_MS = 20
+EVENT_HOP_MS = 10
+EVENT_FRAME_LEN = int(TARGET_SR * (EVENT_FRAME_MS / 1000.0))
+EVENT_HOP_LEN = int(TARGET_SR * (EVENT_HOP_MS / 1000.0))
 
-# 음성파일을 모델이 쓸 수 있는 형태로 변환
-# 여기에 쓰인 매개변수들은 나중에 빼서 따로 관리
-def wav_to_logmel_spectrogram(
-    audio: np.ndarray,
-    sr: int = TARGET_SR,
+K_STD = 1.0
+MIN_EVENT_SEC = 0.05
+MIN_EVENT_FRAMES = int(MIN_EVENT_SEC / (EVENT_HOP_MS / 1000.0))
+MERGE_GAP_SEC = 0.15
+MERGE_GAP_FRAMES = int(MERGE_GAP_SEC / (EVENT_HOP_MS / 1000.0))
+MAX_EVENTS_PER_FILE = 3
+
+def fix_length_1p5s(y: np.ndarray, target_len: int) -> np.ndarray:
+    """
+    reference 코드와 맞춤:
+    길면 가운데 기준으로 1.5초 crop
+    짧으면 뒤에 0 padding
+    """
+    if len(y) >= target_len:
+        start = (len(y) - target_len) // 2
+        return y[start:start + target_len]
+    pad = target_len - len(y)
+    return np.pad(y, (0, pad), mode="constant")
+
+def detect_cough_events_rms(
+    y: np.ndarray,
+    k_std: float = K_STD,
+    max_events_per_file: int = MAX_EVENTS_PER_FILE,
+) -> List[Tuple[int, int]]:
+    """
+    reference 코드와 비슷하게 RMS 기반 기침 이벤트 구간 탐지
+    """
+    if y is None or len(y) < EVENT_FRAME_LEN:
+        return []
+
+    rms = librosa.feature.rms(
+        y=y,
+        frame_length=EVENT_FRAME_LEN,
+        hop_length=EVENT_HOP_LEN
+    )[0]
+
+    mu = float(np.mean(rms))
+    sigma = float(np.std(rms)) + 1e-10
+    thr = mu + k_std * sigma
+    active = rms > thr
+
+    events: List[Tuple[int, int]] = []
+    i, n = 0, len(active)
+
+    while i < n:
+        if not active[i]:
+            i += 1
+            continue
+
+        j = i
+        while j < n and active[j]:
+            j += 1
+
+        if (j - i) >= MIN_EVENT_FRAMES:
+            events.append((i, j - 1))
+        i = j
+
+    if not events:
+        return []
+
+    merged: List[Tuple[int, int]] = []
+    cur_s, cur_e = events[0]
+    for s, e in events[1:]:
+        if s - cur_e <= MERGE_GAP_FRAMES:
+            cur_e = e
+        else:
+            merged.append((cur_s, cur_e))
+            cur_s, cur_e = s, e
+    merged.append((cur_s, cur_e))
+
+    sample_events: List[Tuple[int, int]] = []
+    for fs, fe in merged:
+        start = fs * EVENT_HOP_LEN
+        end = min(len(y), fe * EVENT_HOP_LEN + EVENT_FRAME_LEN)
+        if end > start:
+            sample_events.append((start, end))
+
+    scored = []
+    for start, end in sample_events:
+        seg = y[start:end]
+        score = float(np.sqrt(np.mean(seg * seg)) + 1e-12)
+        scored.append((score, start, end))
+
+    scored.sort(reverse=True, key=lambda x: x[0])
+    return [(s, e) for _, s, e in scored[:max_events_per_file]]
+
+def wav_to_log_spec_tensor(
+    wav_1p5: np.ndarray,
     n_fft: int = N_FFT,
     hop_length: int = HOP_LENGTH,
-    n_mels: int = N_MELS,
+    target_hw: Tuple[int, int] = TARGET_HW,
 ) -> np.ndarray:
-    mel = librosa.feature.melspectrogram(
-        y=audio,
-        sr=sr,
+    """
+    reference 코드 맞춤:
+    stft -> abs -> log(x + 1e-6)
+    최종 shape: (90, 513)
+    """
+    target_frames, target_bins = target_hw
+
+    stft = librosa.stft(
+        y=wav_1p5.astype(np.float32),
         n_fft=n_fft,
         hop_length=hop_length,
-        n_mels=n_mels,
-        power=2.0,
+        win_length=n_fft,
+        center=False,
     )
-    logmel = librosa.power_to_db(mel, ref=np.max)
-    return logmel.astype(np.float32)
 
-# spectrogram 크기를 모델에 맞게 조절
-# pad_or_crop_1d 에서 이미 하고 있지만, 예외상황을 대비하기 위한 함수
-def resize_spectrogram(spec: np.ndarray, target_hw: Tuple[int, int]) -> np.ndarray:
-    target_h, target_w = target_hw
-    spec_resized = librosa.util.fix_length(spec, size=target_w, axis=1)
+    spec = np.abs(stft)
+    spec = np.log(spec + 1e-6).astype(np.float32)
 
-    if spec_resized.shape[0] < target_h:
-        pad_h = target_h - spec_resized.shape[0]
-        spec_resized = np.pad(spec_resized, ((0, pad_h), (0, 0)))
-    else:
-        spec_resized = spec_resized[:target_h, :]
+    # librosa 결과는 (freq, time) 이므로 (time, freq)로 전치
+    spec = spec.T
 
-    return spec_resized.astype(np.float32)
+    # reference 코드처럼 앞에서부터 [:90, :513]
+    spec = spec[:target_frames, :target_bins]
 
-# (H, W) 형태의 spectrogram을 모델이 요구하는 (1, H, W, 1) 형태로 바꾸는 함수
+    # 혹시 모자라면 pad
+    cur_t, cur_f = spec.shape
+
+    if cur_t < target_frames:
+        spec = np.pad(spec, ((0, target_frames - cur_t), (0, 0)), mode="constant")
+
+    if cur_f < target_bins:
+        spec = np.pad(spec, ((0, 0), (0, target_bins - cur_f)), mode="constant")
+
+    return spec.astype(np.float32)
+
 def make_model_input(spec: np.ndarray) -> np.ndarray:
-    x = np.expand_dims(spec, axis=-1)   # (H, W, 1)
-    x = np.expand_dims(x, axis=0)       # (1, H, W, 1)
-    return x.astype(np.float32)         # 
+    x = np.expand_dims(spec, axis=-1)   # (90, 513, 1)
+    x = np.expand_dims(x, axis=0)       # (1, 90, 513, 1)
+    return x.astype(np.float32)
 
-# 전처리 함수를 하나로 묶어서 실행하고, 입력값을 반환하는 함수
+# 최종 전처리
 def preprocess_for_model(
     wav_path: str,
     target_sec: float = TARGET_SEC,
     sr: int = TARGET_SR,
     target_hw: Tuple[int, int] = TARGET_HW,
 ) -> np.ndarray:
-    # librosa.load 함수가 2개의 audio_array, sample_rate 2개의 튜플을 반환함
-    # 샘플레이트는 이미 변환을 통해 보정되어 있으므로 검증이 필요 없어서 _ 변수로 무시
-    audio, _ = librosa.load(wav_path, sr=sr, mono=True) 
+    audio, _ = librosa.load(wav_path, sr=sr, mono=True)
 
     target_len = int(sr * target_sec)
-    audio = pad_or_crop_1d(audio, target_len)
 
-    spec = wav_to_logmel_spectrogram(audio, sr=sr)
-    spec = resize_spectrogram(spec, target_hw)
+    # 1) 기침 이벤트 탐지
+    events = detect_cough_events_rms(audio)
+
+    # 2) 이벤트가 있으면 가장 강한 이벤트 사용, 없으면 전체 오디오 사용
+    if events:
+        start, end = events[0]
+        audio_seg = audio[start:end]
+        print(f"event detected: start={start}, end={end}, len={end-start}")
+    else:
+        audio_seg = audio
+        print("event detected: none -> fallback to full audio")
+
+    # 3) 1.5초 길이 맞춤 (가운데 crop / 뒤 padding)
+    audio_fixed = fix_length_1p5s(audio_seg, target_len)
+
+    # 4) STFT(abs) -> log(x + 1e-6)
+    spec = wav_to_log_spec_tensor(
+        wav_1p5=audio_fixed,
+        n_fft=N_FFT,
+        hop_length=HOP_LENGTH,
+        target_hw=target_hw,
+    )
 
     print("=== preprocess debug ===")
-    print("audio min =", np.min(audio))
-    print("audio max =", np.max(audio))
-    print("audio mean =", np.mean(audio))
-    print("audio len =", len(audio))
-    
+    print("audio original min =", np.min(audio))
+    print("audio original max =", np.max(audio))
+    print("audio original mean =", np.mean(audio))
+    print("audio original len =", len(audio))
+
+    print("audio fixed min =", np.min(audio_fixed))
+    print("audio fixed max =", np.max(audio_fixed))
+    print("audio fixed mean =", np.mean(audio_fixed))
+    print("audio fixed len =", len(audio_fixed))
+
     print("spec shape =", spec.shape)
     print("spec min =", np.min(spec))
     print("spec max =", np.max(spec))
     print("spec mean =", np.mean(spec))
     print("spec first_row_first5 =", spec[0, :5])
-    
+
     x = make_model_input(spec)
-    
+
     print("x shape =", x.shape)
     print("x min =", np.min(x))
     print("x max =", np.max(x))
     print("x mean =", np.mean(x))
+
     return x

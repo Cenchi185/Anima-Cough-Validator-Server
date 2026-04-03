@@ -38,27 +38,15 @@ def get_embedding_model():
     if model is None:
         return None
 
-    print("=== 모델 레이어 목록 ===")
-    for i, layer in enumerate(model.layers):
-        try:
-            print(f"[{i}] name={layer.name}, output_shape={layer.output.shape}")
-        except Exception as e:
-            print(f"[{i}] name={layer.name}, output_shape=확인불가 ({e})")
-            
-    candidate_names = ["embedding", "activation", "embed", "embedding_1"]
+    try:
+        emb_layer = model.get_layer("embedding")
+        emb_model = tf.keras.Model(inputs=model.input, outputs=emb_layer.output)
+        print("embedding model 생성 성공: layer=embedding (pre-ReLU)")
+        return emb_model
+    except Exception as e:
+        print(f"embedding model 생성 실패: {type(e).__name__}: {e}")
+        return None
     
-    for name in candidate_names:
-        try :
-            emb_layer = model.get_layer(name)
-            emb_model = tf.keras.Model(inputs=model.input, outputs=emb_layer.output)
-            print(f"embedding model 생성 성공 : layer={name}")
-            return emb_model
-        except Exception:
-            pass
-        
-    print("embedding layer를 찾지 못했습니다. model.summary() / layer 이름 확인 필요")
-    return None
-
 @lru_cache(maxsize=1)
 def get_healthy_reference():
     if not HEALTHY_REF_JSON_PATH.exists():
