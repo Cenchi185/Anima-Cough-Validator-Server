@@ -17,3 +17,6 @@ tensorflow==2.20.0
 # requests==2.32.5
 # scikit-learn==1.8.0
 # python-dotenv==1.2.1
+
+# 시스템 패키지
+# ffempeg 설치 할 것
