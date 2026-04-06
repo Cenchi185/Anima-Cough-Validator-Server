@@ -1,5 +1,5 @@
 from pathlib import Path
-from app.core.config import UPLOAD_DIR, CONVERTED_DIR, MIN_DURATION
+from app.core.config import UPLOAD_DIR, CONVERTED_DIR, MIN_DURATION, COUGH_THRESHOLD
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from app.services.audio_service import (
     probe_audio,
@@ -8,6 +8,8 @@ from app.services.audio_service import (
     preprocess_for_model,
 )
 from app.services.prediction_service import predict
+from app.services.record_service import save_mr_record
+
 import uuid
 
 router = APIRouter()
@@ -70,13 +72,40 @@ async def upload_file(file: UploadFile = File(...)):
                                 )
     
         x = preprocess_for_model(str(wav_path)) # 모델 입력 파라미터 전처리
-        prediction = predict(x)  # 가짜 모델
+        prediction = predict(x) 
+
+        stage2 = prediction.get("stage2", {})
+        change_score = None
+
+        if not stage2.get("skipped", True):
+            distance = stage2.get("distance")
+            if distance is not None:
+                change_score = float(distance)
+
+        mr_record = {
+                "cough_detected": prediction.get("is_cough"),
+                "cough_confidence": prediction.get("prob"),
+                "cough_threshold": COUGH_THRESHOLD,
+                "audio_duration_sec": validation.get("duration"),
+                "baseline_deviation_score": change_score,
+                "change_score": change_score,
+                "model_version": prediction.get("model"),
+            }
+        
+        saved_result = save_mr_record(
+            mr_record=mr_record,
+            user_uuid=None,
+            local_audio_path=str(saved_path),
+        )
+
 
         return {
             "ok":True,
             "filename":original_filename,
             "validation":validation,
             "prediction":prediction,
+            "mr_record":mr_record,
+            "db_saved": saved_result,
         }
     
     finally:

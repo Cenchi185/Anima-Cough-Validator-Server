@@ -7,6 +7,9 @@ DATA_DIR = BASE_DIR / "app" / "data"
 UPLOAD_DIR = DATA_DIR / "uploads"  # 원본 파일 저장 위치
 CONVERTED_DIR = DATA_DIR / "converted"  # 변환 파일 저장 위치
 
+DB_DIR = BASE_DIR / "app" / "db"
+DB_PATH = DB_DIR / "anima.db"
+
 MODEL_DIR = BASE_DIR / "models"
 # MODEL_PATH = MODEL_DIR / "savedmodel_best_1to1_embed64"
 MODEL_PATH = MODEL_DIR / "best_1to1_embed64.keras"

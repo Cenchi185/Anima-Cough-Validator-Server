@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from app.routers import upload_router
+from app.db.database import init_db
 
 app = FastAPI()
+init_db()
 app.include_router(upload_router.router)
 
 @app.get("/health")
