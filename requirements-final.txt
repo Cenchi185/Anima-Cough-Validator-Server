@@ -1,0 +1,19 @@
+# 서버 실행용 필수 패키지
+fastapi==0.128.0
+uvicorn==0.40.0
+
+# 파일 업로드 처리용
+python-multipart==0.0.21
+
+# 오디오 처리
+numpy==2.4.0
+librosa==0.11.0
+soundfile==0.13.1
+
+# 모델 구동
+tensorflow==2.20.0
+
+# 선택적 설치
+# requests==2.32.5
+# scikit-learn==1.8.0
+# python-dotenv==1.2.1
