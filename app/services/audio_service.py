@@ -24,10 +24,20 @@ def probe_audio(file_path : str) -> dict:
 
     # cmd 명령어(위에 내용) 실행 결과 저장
     result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0: # 실패시 예외 출력
-        raise RuntimeError(f"ffprobe Failed: {result.stderr}")
-    
-    return json.loads(result.stdout)
+
+    if result.returncode != 0:
+        raise RuntimeError(f"ffprobe failed: {result.stderr.strip()}")
+
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"ffprobe json parse failed: {e}")
+
+    streams = data.get("streams", [])
+    if not streams:
+        raise RuntimeError("오디오 스트림이 없음")
+
+    return data
 
 # 업로드 음성 전처리
 def convert_audio_to_wav(input_path: str, output_path: str) -> str:
