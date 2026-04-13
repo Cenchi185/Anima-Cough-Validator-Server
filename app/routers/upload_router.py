@@ -38,6 +38,15 @@ def build_report_text(prediction: dict) -> str:
         return "기침으로 판단되었습니다."
     return "기침이 아닌 것으로 판단되었습니다."
 
+def map_risk_level(stage2_level: str | None) -> str | None:
+    if stage2_level == "normal_range":
+        return "GOOD"
+    if stage2_level == "borderline":
+        return "CAUTION"
+    if stage2_level in ("abnormal_high", "abnormal_very_high"):
+        return "RISK"
+    return None
+
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     file_id = str(uuid.uuid4()) # 고유 파일명(업로드한 음성파일) 생성
@@ -98,7 +107,8 @@ async def upload_file(file: UploadFile = File(...)):
         prediction = predict(x) 
 
         stage2 = prediction.get("stage2", {})
-        change_score = None
+        healthy_distance = None
+        risk_level = None
 
         model_version = prediction.get("model")
         report_text = build_report_text(prediction)
@@ -106,18 +116,25 @@ async def upload_file(file: UploadFile = File(...)):
         if not stage2.get("skipped", True):
             distance = stage2.get("distance")
             if distance is not None:
-                change_score = float(distance)
+                healthy_distance = float(distance)
+                
+            interpretation = stage2.get("interpretation", {})
+            risk_level = map_risk_level(interpretation.get("level"))
 
         mr_record = {
                 "cough_detected": prediction.get("is_cough"),
                 "cough_confidence": prediction.get("prob"),
                 "cough_threshold": COUGH_THRESHOLD,
-                "quality_score": prediction.get("prob"),
+                "quality_score": None,
                 "quality_fail_reason": quality_fail_reason,
                 "report_text": report_text,
-                "change_score": change_score,
-                "embedding_version": model_version,
+                "healthy_distance": healthy_distance,
+                "model_version": model_version,
                 "audio_duration_sec": validation.get("duration"),
+                "reference_dataset": "COUGHVID_HEALTHY",
+                "distance_metric": "MAHALANOBIS",
+                "reference_version": "healthy_ref_final.json",
+                "risk_level": risk_level,
             }
         
         saved_result = save_mr_record(

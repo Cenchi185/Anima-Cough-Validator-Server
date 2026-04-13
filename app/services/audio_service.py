@@ -3,12 +3,18 @@ import json, subprocess, librosa
 import numpy as np
 
 from app.core.config import (
+    DEBUG,
     TARGET_SR,
     TARGET_SEC,
     TARGET_HW,
     N_FFT,
     HOP_LENGTH,
 )
+
+# 디버그 출력 함수
+def debug_print(*args):
+    if DEBUG:
+        print(*args)
 
 # 음성파일의 형식을 ffmpeg로 분석
 def probe_audio(file_path : str) -> dict:
@@ -102,6 +108,7 @@ MERGE_GAP_SEC = 0.15
 MERGE_GAP_FRAMES = int(MERGE_GAP_SEC / (EVENT_HOP_MS / 1000.0))
 MAX_EVENTS_PER_FILE = 3
 
+# 길이 맞추기 (전처리)
 def fix_length_1p5s(y: np.ndarray, target_len: int) -> np.ndarray:
     """
     reference 코드와 맞춤:
@@ -114,14 +121,12 @@ def fix_length_1p5s(y: np.ndarray, target_len: int) -> np.ndarray:
     pad = target_len - len(y)
     return np.pad(y, (0, pad), mode="constant")
 
+# RMS 기반 기침 이벤트 구간 탐지
 def detect_cough_events_rms(
     y: np.ndarray,
     k_std: float = K_STD,
     max_events_per_file: int = MAX_EVENTS_PER_FILE,
 ) -> List[Tuple[int, int]]:
-    """
-    reference 코드와 비슷하게 RMS 기반 기침 이벤트 구간 탐지
-    """
     if y is None or len(y) < EVENT_FRAME_LEN:
         return []
 
@@ -136,7 +141,7 @@ def detect_cough_events_rms(
     thr = mu + k_std * sigma
     active = rms > thr
 
-    events: List[Tuple[int, int]] = []
+    events = []
     i, n = 0, len(active)
 
     while i < n:
@@ -155,17 +160,19 @@ def detect_cough_events_rms(
     if not events:
         return []
 
-    merged: List[Tuple[int, int]] = []
+    merged = []
     cur_s, cur_e = events[0]
+    
     for s, e in events[1:]:
         if s - cur_e <= MERGE_GAP_FRAMES:
             cur_e = e
         else:
             merged.append((cur_s, cur_e))
             cur_s, cur_e = s, e
+            
     merged.append((cur_s, cur_e))
 
-    sample_events: List[Tuple[int, int]] = []
+    sample_events = []
     for fs, fe in merged:
         start = fs * EVENT_HOP_LEN
         end = min(len(y), fe * EVENT_HOP_LEN + EVENT_FRAME_LEN)
@@ -179,8 +186,10 @@ def detect_cough_events_rms(
         scored.append((score, start, end))
 
     scored.sort(reverse=True, key=lambda x: x[0])
+    
     return [(s, e) for _, s, e in scored[:max_events_per_file]]
 
+# 스펙트럼 변환
 def wav_to_log_spec_tensor(
     wav_1p5: np.ndarray,
     n_fft: int = N_FFT,
@@ -207,7 +216,6 @@ def wav_to_log_spec_tensor(
 
     # librosa 결과는 (freq, time) 이므로 (time, freq)로 전치
     spec = spec.T
-
     # reference 코드처럼 앞에서부터 [:90, :513]
     spec = spec[:target_frames, :target_bins]
 
@@ -222,6 +230,7 @@ def wav_to_log_spec_tensor(
 
     return spec.astype(np.float32)
 
+# 모델 입력 변환
 def make_model_input(spec: np.ndarray) -> np.ndarray:
     x = np.expand_dims(spec, axis=-1)   # (90, 513, 1)
     x = np.expand_dims(x, axis=0)       # (1, 90, 513, 1)
@@ -234,14 +243,14 @@ def preprocess_for_model(
     sr: int = TARGET_SR,
     target_hw: Tuple[int, int] = TARGET_HW,
 ) -> np.ndarray:
+    
     audio, _ = librosa.load(wav_path, sr=sr, mono=True)
-
     target_len = int(sr * target_sec)
 
-    # 1) 기침 이벤트 탐지
+    # 기침 이벤트 탐지
     events = detect_cough_events_rms(audio)
 
-    # 2) 이벤트가 있으면 가장 강한 이벤트 사용, 없으면 전체 오디오 사용
+    # 이벤트가 있으면 가장 강한 이벤트 사용, 없으면 전체 오디오 사용
     if events:
         start, end = events[0]
         audio_seg = audio[start:end]
@@ -250,10 +259,10 @@ def preprocess_for_model(
         audio_seg = audio
         print("event detected: none -> fallback to full audio")
 
-    # 3) 1.5초 길이 맞춤 (가운데 crop / 뒤 padding)
+    # 1.5초 길이 맞춤 (가운데 crop / 뒤 padding)
     audio_fixed = fix_length_1p5s(audio_seg, target_len)
 
-    # 4) STFT(abs) -> log(x + 1e-6)
+    # STFT(abs) -> log(x + 1e-6)
     spec = wav_to_log_spec_tensor(
         wav_1p5=audio_fixed,
         n_fft=N_FFT,
@@ -261,28 +270,8 @@ def preprocess_for_model(
         target_hw=target_hw,
     )
 
-    print("=== preprocess debug ===")
-    print("audio original min =", np.min(audio))
-    print("audio original max =", np.max(audio))
-    print("audio original mean =", np.mean(audio))
-    print("audio original len =", len(audio))
-
-    print("audio fixed min =", np.min(audio_fixed))
-    print("audio fixed max =", np.max(audio_fixed))
-    print("audio fixed mean =", np.mean(audio_fixed))
-    print("audio fixed len =", len(audio_fixed))
-
-    print("spec shape =", spec.shape)
-    print("spec min =", np.min(spec))
-    print("spec max =", np.max(spec))
-    print("spec mean =", np.mean(spec))
-    print("spec first_row_first5 =", spec[0, :5])
-
+    debug_print("[SPEC] shape =", spec.shape)
     x = make_model_input(spec)
-
-    print("x shape =", x.shape)
-    print("x min =", np.min(x))
-    print("x max =", np.max(x))
-    print("x mean =", np.mean(x))
-
+    debug_print("[MODEL INPUT] shape =", x.shape)
+    
     return x

@@ -16,9 +16,9 @@ def init_db() -> None:
             record_id INTEGER PRIMARY KEY AUTOINCREMENT,
 
             record_uuid TEXT UNIQUE NOT NULL,
-            user_uuid TEXT,
+            user_uuid TEXT NOT NULL DEFAULT 'local',
 
-            analysis_status TEXT NOT NULL DEFAULT 'ANALYZED',
+            analysis_status TEXT NOT NULL DEFAULT 'PENDING',
 
             cough_detected INTEGER,
             cough_confidence REAL,
@@ -27,18 +27,25 @@ def init_db() -> None:
             quality_score REAL,
             quality_fail_reason TEXT,
 
-            baseline_similarity_score REAL,
-            baseline_deviation_score REAL,
+            healthy_distance REAL,
+            reference_dataset TEXT DEFAULT 'COUGHVID_HEALTHY',
+            distance_metric TEXT DEFAULT 'MAHALANOBIS',
+            reference_version TEXT DEFAULT 'healthy_ref_final.json',
+            risk_level TEXT,
 
             report_text TEXT,
 
-            model_version TEXT NOT NULL,
-            embedding_version TEXT,
+            model_version TEXT DEFAULT 'ANIMA_BEST_1',
 
-            audio_duration_sec REAL NOT NULL,
-
+            audio_duration_sec REAL,
             local_audio_path TEXT,
+
+            sync_status TEXT NOT NULL DEFAULT 'LOCAL_ONLY',
+            sync_retry_count INTEGER NOT NULL DEFAULT 0,
+            last_sync_attempt_at TEXT,
             server_received_at TEXT,
+            synced_at TEXT,
+
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
@@ -47,9 +54,8 @@ def init_db() -> None:
         conn.commit()
 
 def test_db_connection() -> None:
-    
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
         result = cursor.fetchone()
-        print("DB 연결 성공 : ", dict(result))
+        print("DB 연결 성공:", dict(result))

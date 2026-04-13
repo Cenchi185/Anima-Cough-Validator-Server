@@ -1,14 +1,20 @@
 import numpy as np
-from app.core.config import COUGH_THRESHOLD
+from app.core.config import COUGH_THRESHOLD, DEBUG
 from app.services.model_service import (
     get_model,
     get_embedding_model,
     get_healthy_reference,
 )
 
+def debug_print(*args):
+    if DEBUG:
+        print(*args)
+
 # 서버 입출력 처리 테스트용 페이크 모델
 def fake_model_predict(x: np.ndarray) -> dict:
     prob = 0.85
+    debug_print("[PREDICT] fallback to fake model")
+    
     return {
         "is_cough": prob >= COUGH_THRESHOLD,
         "prob": prob,
@@ -67,6 +73,7 @@ def real_model_predict(model, x: np.ndarray) -> dict:
         "input_shape": list(x.shape),
         "model": "best_1to1_embed64.keras"
     }
+    debug_print(f"[STAGE1] prob={prob:.6f}, threshold={COUGH_THRESHOLD}")
     
     # 기침이 아니면 2단계 분석 생략
     if prob < COUGH_THRESHOLD:
@@ -80,6 +87,7 @@ def real_model_predict(model, x: np.ndarray) -> dict:
     ref = get_healthy_reference()
     
     if emb_model is None:
+        debug_print("[STAGE2] skipped: embedding model not available")
         result["stage2"] = {
             "skipped": True,
             "reason": "embedding_model_not_available"
@@ -87,40 +95,25 @@ def real_model_predict(model, x: np.ndarray) -> dict:
         return result
     
     if ref is None:
+        debug_print("[STAGE2] skipped: healthy reference not available")
         result["stage2"] = {
             "skipped": True,
             "reason": "healthy_reference_not_available"
         }
         return result
     
-    print("=== healthy ref meta ===")
-    print(ref["meta"])
     # embedding 추출
     emb = emb_model.predict(x, verbose=0)
     emb = np.squeeze(emb).astype(np.float32)
     
-    emb_norm = np.linalg.norm(emb)
-    print("emb l2 norm =", emb_norm)
-
-    emb_act = np.maximum(emb, 0)
-    print("emb_act min =", np.min(emb_act))
-    print("emb_act max =", np.max(emb_act))
-    print("emb_act mean =", np.mean(emb_act))
-    print("emb_act first5 =", emb_act[:5])
-    print("emb_act l2 norm =", np.linalg.norm(emb_act))
-
     # shape 확인
     if emb.ndim != 1:
+        debug_print(f"[STAGE2] skipped: unexpected embedding shape={list(emb.shape)}")
         result["stage2"] = {
             "skipped": True,
             "reason": f"unexpected_embedding_shape: {list(emb.shape)}"
         }
         return result
-
-    print("ref mean shape =", ref["mean"].shape)
-    print("ref mean min =", np.min(ref["mean"]))
-    print("ref mean max =", np.max(ref["mean"]))
-    print("ref mean first5 =", ref["mean"][:5])
 
     dist = mahalanobis_distance(
         x=emb,
@@ -128,11 +121,13 @@ def real_model_predict(model, x: np.ndarray) -> dict:
         inv_cov=ref["inv_cov"],
     )
 
-    print("distance =", dist)
-    print("ref quantiles =", ref["meta"]["distance_quantiles"])
-
     quantiles = ref["meta"]["distance_quantiles"]
     interpretation = interpret_distance(dist, quantiles)
+
+    debug_print(
+        f"[STAGE2] distance={dist:.6f}, "
+        f"level={interpretation['level']}"
+    )
 
     result["stage2"] = {
         "skipped": False,

@@ -14,6 +14,8 @@ MODEL_DIR = BASE_DIR / "models"
 # MODEL_PATH = MODEL_DIR / "savedmodel_best_1to1_embed64"
 MODEL_PATH = MODEL_DIR / "best_1to1_embed64.keras"
 
+DEBUG = True
+
 # 1단계 기침 검증 모델용 변수
 TARGET_SR = 16000
 TARGET_CHANNELS = 1
