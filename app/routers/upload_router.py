@@ -29,21 +29,6 @@ def safe_unlink(path:Path) -> None:
     if path.exists():
         path.unlink()
 
-def build_report_text(prediction: dict) -> str:
-    stage2 = prediction.get("stage2", {})
-
-    # 2단계 결과가 있으면 그 해석 문구를 우선 사용
-    if not stage2.get("skipped", True):
-        interpretation = stage2.get("interpretation", {})
-        message = interpretation.get("message")
-        if message:
-            return message
-
-    # 2단계가 없으면 1단계 결과 기준 기본 문구
-    if prediction.get("is_cough"):
-        return "기침으로 판단되었습니다."
-    return "기침이 아닌 것으로 판단되었습니다."
-
 def map_risk_level(stage2_level: str | None) -> str | None:
     if stage2_level == "normal_range":
         return "GOOD"
@@ -147,7 +132,7 @@ async def upload_file(file: UploadFile = File(...)):
         risk_level = None
 
         model_version = prediction.get("model")
-        report_text = build_report_text(prediction)
+        report_text = final_prediction["final_message"]
 
         if not stage2.get("skipped", True):
             distance = stage2.get("distance")

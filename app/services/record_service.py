@@ -49,6 +49,8 @@ def save_mr_record(
                 cough_threshold,
                 quality_score,
                 quality_fail_reason,
+                final_score,
+                final_label,
                 healthy_distance,
                 reference_dataset,
                 distance_metric,
@@ -62,7 +64,7 @@ def save_mr_record(
                 created_at,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 record_uuid,
@@ -73,6 +75,8 @@ def save_mr_record(
                 mr_record.get("cough_threshold"),
                 mr_record.get("quality_score"),
                 mr_record.get("quality_fail_reason"),
+                mr_record.get("final_score"),
+                mr_record.get("final_label"),
                 mr_record.get("healthy_distance"),
                 mr_record.get("reference_dataset", "COUGHVID_HEALTHY"),
                 mr_record.get("distance_metric", "MAHALANOBIS"),
