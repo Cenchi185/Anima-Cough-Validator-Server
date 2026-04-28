@@ -1,4 +1,7 @@
 from pathlib import Path
+import uuid
+import librosa
+
 from app.core.config import UPLOAD_DIR, CONVERTED_DIR, MIN_DURATION, COUGH_THRESHOLD
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from app.services.audio_service import (
@@ -9,8 +12,11 @@ from app.services.audio_service import (
 )
 from app.services.prediction_service import predict
 from app.services.record_service import save_mr_record
-
-import uuid
+from app.services.score_service import (
+    calculate_quality_score,
+    calculate_final_score,
+    get_final_prediction,
+)
 
 router = APIRouter()
 
@@ -72,7 +78,6 @@ async def upload_file(file: UploadFile = File(...)):
             # quality_fail_reason = "not_audio"
             raise HTTPException(status_code=400, detail="오디오가 아니거나 분석할 수 없음")
     
-
         # 변환 검증
         try:
             convert_audio_to_wav(str(saved_path), str(wav_path))
@@ -100,11 +105,42 @@ async def upload_file(file: UploadFile = File(...)):
             # quality_fail_reason = validation['reason']
             raise HTTPException(status_code=400,
                                 detail={"message":"변환된 wav 파일이 요구 조건 충족하지 않음",
-                                        "reason":validation["reason"],},
+                                        "reason":validation["reason"],
+                                        },
                                 )
-    
+
+        # quality score 계산
+        try:
+            audio, sr = librosa.load(str(wav_path), sr=None, mono=True)
+
+            quality_result = calculate_quality_score(
+                audio=audio,
+                sample_rate=sr,
+                duration_sec=validation.get("duration"),
+            )
+        except Exception as e:
+            print("calculate_quality_score error =", repr(e))
+            quality_result = {
+                "quality_score": 0.0,
+                "quality_flag": "LOW",
+                "message": "녹음 품질을 평가하는 중 문제가 발생했습니다.",
+                "details": {},
+            }
+            quality_fail_reason = "quality_score_calculation_failed"
+
+        quality_score = quality_result["quality_score"]
+        quality_flag = quality_result["quality_flag"]
+        quality_message = quality_result["message"]
+
         x = preprocess_for_model(str(wav_path)) # 모델 입력 파라미터 전처리
         prediction = predict(x) 
+
+        # 최종 점수
+        final_score = calculate_final_score(
+            cough_confidence=prediction.get("prob"),
+            quality_score=quality_score,
+        )
+        final_prediction = get_final_prediction(final_score)
 
         stage2 = prediction.get("stage2", {})
         healthy_distance = None
@@ -125,7 +161,8 @@ async def upload_file(file: UploadFile = File(...)):
                 "cough_detected": prediction.get("is_cough"),
                 "cough_confidence": prediction.get("prob"),
                 "cough_threshold": COUGH_THRESHOLD,
-                "quality_score": None,
+                "quality_score": quality_score,
+                "quality_flag": quality_flag,
                 "quality_fail_reason": quality_fail_reason,
                 "report_text": report_text,
                 "healthy_distance": healthy_distance,
@@ -135,6 +172,8 @@ async def upload_file(file: UploadFile = File(...)):
                 "distance_metric": "MAHALANOBIS",
                 "reference_version": "healthy_ref_final.json",
                 "risk_level": risk_level,
+                "final_score": final_score,
+                "final_label": final_prediction["final_label"],
             }
         
         saved_result = save_mr_record(
@@ -148,7 +187,14 @@ async def upload_file(file: UploadFile = File(...)):
             "filename":original_filename,
             "validation":validation,
             "prediction":prediction,
-            "mr_record":mr_record,
+            "quality": quality_result,
+            "final_prediction": {
+                "final_score": final_score,
+                "final_detected": final_prediction["final_detected"],
+                "final_label": final_prediction["final_label"],
+                "final_message": final_prediction["final_message"],
+            },
+            "mr_record": mr_record,
             "db_saved": saved_result,
         }
     
