@@ -115,7 +115,6 @@ async def upload_file(file: UploadFile = File(...)):
 
         quality_score = quality_result["quality_score"]
         quality_flag = quality_result["quality_flag"]
-        quality_message = quality_result["message"]
 
         x = preprocess_for_model(str(wav_path)) # 모델 입력 파라미터 전처리
         prediction = predict(x) 
