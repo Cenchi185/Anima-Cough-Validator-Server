@@ -262,16 +262,3 @@ uvicorn app.main:app --reload
 
 * `.python-version`
 * `apt.txt` (ffmpeg)
-
----
-
-## 13. 현재 상태
-
-```text
-분석 기능: 완료
-품질 평가: 완료
-최종 점수: 완료
-DB 저장: 완료
-동기화 API: 완료
-외부 배포: 완료
-```
