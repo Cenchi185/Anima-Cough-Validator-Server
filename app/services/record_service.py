@@ -17,10 +17,8 @@ def _decide_analysis_status(mr_record: dict) -> str:
 
     if detected is False or detected == 0:
         return "NON_COUGH"
-
     if detected is True or detected == 1:
         return "ANALYZED"
-
     if fail_reason:
         return "FAILED"
 
@@ -31,11 +29,12 @@ def save_mr_record(
     user_uuid: Optional[str] = None,
     local_audio_path: Optional[str] = None,
 ) -> dict:
-    record_uuid = str(uuid.uuid4())
-    now = datetime.now().isoformat(timespec="seconds")
-    analysis_status = _decide_analysis_status(mr_record)
+    '''mr_record 를 DB 에 저장하기'''
+    record_uuid = str(uuid.uuid4()) # 기록 uuid, 나중에는 사용자의 uuid 로 대체 될 듯?
+    now = datetime.now().isoformat(timespec="seconds") # 분석 기록 일자
+    analysis_status = _decide_analysis_status(mr_record) # 기침 분석 결과 저장(분석 되었는지 실패했는지)
 
-    with get_connection() as conn:
+    with get_connection() as conn: # db 연결 (임시)
         cursor = conn.cursor()
 
         cursor.execute(

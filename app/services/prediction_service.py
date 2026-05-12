@@ -10,8 +10,9 @@ def debug_print(*args):
     if DEBUG:
         print(*args)
 
-# 서버 입출력 처리 테스트용 페이크 모델
+
 def fake_model_predict(x: np.ndarray) -> dict:
+    ''' 모델이 없을때 서버가 죽지 않도록 가짜 모델 사용 '''
     prob = 0.85
     debug_print("[PREDICT] fallback to fake model")
     
@@ -27,12 +28,23 @@ def fake_model_predict(x: np.ndarray) -> dict:
     }
 
 def mahalanobis_distance(x: np.ndarray, mean: np.ndarray, inv_cov: np.ndarray) -> float:
+    '''
+    마할라노비스 거리 계산
+    정상 기침 데이터 분포에서 얼마나 벗어났는지 확인하는 거리
+    정상 데이터가 퍼진 방향과 분산까지 고려함
+    '''
     diff = x - mean
     dist_sq = float(diff @ inv_cov @ diff.T)
     dist_sq = max(dist_sq, 0.0)
     return float(np.sqrt(dist_sq))
 
 def interpret_distance(dist: float, q: dict) -> dict:
+    '''
+    p80 이하 → 정상 기침 기준에 가까움
+    p95 이하 → 약간 벗어남
+    p99 이하 → 이상 가능성 높음
+    p99 초과 → 많이 벗어남
+    '''
     if dist <= q["p80"]:
         return {
             "level": "normal_range",
@@ -55,18 +67,24 @@ def interpret_distance(dist: float, q: dict) -> dict:
         }
 
 def predict(x: np.ndarray) -> dict:
+    '''전처리된 데이터(x)로 모델 예측 수행'''
     model = get_model()
 
-    if model is None:
+    if model is None: # 모델이 없을땐 페이크 모델로 대체 (실제 분석 X)
         return fake_model_predict(x)
 
-    return real_model_predict(model, x)
+    return real_model_predict(model, x) # 진짜 모델 예측 결과 반환
 
 def real_model_predict(model, x: np.ndarray) -> dict:
+    '''
+    진짜 모델로 예측 수행
+    1단계 - 음성이 기침이 맞는지 검증
+    2단계 - 기침의 이상도 측정
+    '''
     y = model.predict(x, verbose=0)
     prob = float(y[0][0]) if hasattr(y[0], "__len__") else float(y[0])
 
-    # 기침 검증 결과
+    # 기침 검증 결과, COUFH_THRESHOLD(0.6) 기준으로 기침인지 검증
     result = {
         "is_cough": prob >= COUGH_THRESHOLD,
         "prob": prob,
@@ -83,10 +101,10 @@ def real_model_predict(model, x: np.ndarray) -> dict:
         }
         return result
     
-    emb_model = get_embedding_model()
-    ref = get_healthy_reference()
+    emb_model = get_embedding_model() # 기존 기침 분류 모델에서 중간 특징값
+    ref = get_healthy_reference()   # 정상 기침 기준 데이터 
     
-    if emb_model is None:
+    if emb_model is None: # 임베딩 모델이 없음
         debug_print("[STAGE2] skipped: embedding model not available")
         result["stage2"] = {
             "skipped": True,
@@ -94,7 +112,7 @@ def real_model_predict(model, x: np.ndarray) -> dict:
         }
         return result
     
-    if ref is None:
+    if ref is None: # 정상 기침 기준 데이터가 없음
         debug_print("[STAGE2] skipped: healthy reference not available")
         result["stage2"] = {
             "skipped": True,
@@ -115,6 +133,7 @@ def real_model_predict(model, x: np.ndarray) -> dict:
         }
         return result
 
+    # 마할라노비스 거리 계산
     dist = mahalanobis_distance(
         x=emb,
         mean=ref["mean"],
@@ -122,7 +141,7 @@ def real_model_predict(model, x: np.ndarray) -> dict:
     )
 
     quantiles = ref["meta"]["distance_quantiles"]
-    interpretation = interpret_distance(dist, quantiles)
+    interpretation = interpret_distance(dist, quantiles) # 마할라노비스 거리 해석
 
     debug_print(
         f"[STAGE2] distance={dist:.6f}, "

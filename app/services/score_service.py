@@ -48,11 +48,8 @@ def calculate_snr_db(audio: np.ndarray, silence_threshold: float = 0.01) -> floa
     snr_db = 20.0 * math.log10(signal_rms / noise_rms)
     return round(snr_db, 4)
 
-
 def score_snr(snr_db: float) -> float:
-    """
-    SNR 점수화
-    """
+    ''' SNR 점수화 '''
     if snr_db >= 20:
         return 1.0
     elif snr_db >= 10:
@@ -62,11 +59,8 @@ def score_snr(snr_db: float) -> float:
     else:
         return 0.1
 
-
 def score_duration(duration_sec: float) -> float:
-    """
-    녹음 길이 점수화
-    """
+    ''' 녹음 길이 점수화 '''
     duration_sec = max(duration_sec, 0.0)
 
     if 1.0 <= duration_sec <= 10.0:
@@ -76,12 +70,8 @@ def score_duration(duration_sec: float) -> float:
     else:
         return 0.7
 
-
 def calculate_clipping_ratio(audio: np.ndarray, clipping_threshold: float = 0.99) -> float:
-    """
-    클리핑 비율 계산
-    - 오디오가 -1.0 ~ 1.0 정규화 상태라고 가정
-    """
+    ''' 클리핑 비율 계산 (오디오가 -1.0 ~ 1.0 정규화 상태라고 가정) '''
     if audio is None or len(audio) == 0:
         return 1.0
 
@@ -90,18 +80,14 @@ def calculate_clipping_ratio(audio: np.ndarray, clipping_threshold: float = 0.99
     clipping_ratio = float(np.mean(clipped)) if len(audio) > 0 else 1.0
     return round(clipping_ratio, 6)
 
-
 def score_clipping(clipping_ratio: float) -> float:
-    """
-    클리핑 비율 점수화
-    """
+    ''' 클리핑 비율 점수화 '''
     if clipping_ratio < 0.01:
         return 1.0
     elif clipping_ratio < 0.05:
         return 0.7
     else:
         return 0.3
-
 
 def calculate_energy_ratio(
     audio: np.ndarray,
@@ -140,9 +126,7 @@ def calculate_energy_ratio(
 
 
 def score_energy_pattern(energy_ratio: float) -> float:
-    """
-    기침 특유의 순간적인 에너지 변화 패턴 점수화
-    """
+    """ 기침 특유의 순간적인 에너지 변화 패턴 점수화 """
     if energy_ratio >= 5:
         return 1.0
     elif energy_ratio >= 3:
@@ -150,30 +134,13 @@ def score_energy_pattern(energy_ratio: float) -> float:
     else:
         return 0.3
 
-
 def calculate_quality_score(
     audio: np.ndarray,
     sample_rate: int,
     duration_sec: float | None = None,
 ) -> dict[str, Any]:
-    """
-    quality_score 계산 메인 함수
-    반환:
-    {
-        "quality_score": 0.43,
-        "quality_flag": "LOW",
-        "message": "...",
-        "details": {
-            "snr_db": ...,
-            "snr_score": ...,
-            "duration_score": ...,
-            "clipping_ratio": ...,
-            "clipping_score": ...,
-            "energy_ratio": ...,
-            "energy_pattern_score": ...
-        }
-    }
-    """
+    ''' quality score 계산 '''
+    # 오디오가 없으면 분석 실패 반환 (quality_score 0.0점)
     if audio is None or len(audio) == 0:
         return {
             "quality_score": 0.0,
@@ -195,24 +162,29 @@ def calculate_quality_score(
     if duration_sec is None:
         duration_sec = len(audio) / sample_rate if sample_rate > 0 else 0.0
 
+    # SNR 평가 (소리신호가 잡음보다 얼마나 뚜렷한지) 
     snr_db = calculate_snr_db(audio)
-    snr_score = score_snr(snr_db)
+    snr_score = score_snr(snr_db) # 점수로 변환
 
+    # 녹음 길이가 적절한지 평가
     duration_score = score_duration(duration_sec)
 
+    # 찢어지는 소리가 있는지 평가
     clipping_ratio = calculate_clipping_ratio(audio)
     clipping_score = score_clipping(clipping_ratio)
 
+    # 소리가 튀는 패턴(기침처럼)이 있는지 평가
     energy_ratio = calculate_energy_ratio(audio)
     energy_pattern_score = score_energy_pattern(energy_ratio)
 
+    # 잡음 상태 40%, 녹음 길이 20%, 소리 찢어짐 20%, 기침 에너지 20% 로 점수 합산
     quality_score = (
         0.4 * snr_score
         + 0.2 * duration_score
         + 0.2 * clipping_score
         + 0.2 * energy_pattern_score
     )
-    quality_score = round(_clamp(quality_score), 4)
+    quality_score = round(_clamp(quality_score), 4) # 0~1사이의 값, 4번째 자리에서 반올림
 
     if quality_score >= 0.6:
         quality_flag = "OK"
@@ -236,10 +208,9 @@ def calculate_quality_score(
         },
     }
 
-
 def calculate_final_score(cough_confidence: float, quality_score: float | None) -> float:
     """
-    최종 점수 계산
+    최종 점수 계산 (분석 신뢰도 점수)
     final_score = (0.7 * cough_confidence) + (0.3 * quality_score)
     """
     cough_confidence = _clamp(_safe_float(cough_confidence))

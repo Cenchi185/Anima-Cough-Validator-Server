@@ -12,21 +12,20 @@ from app.core.config import (
 
 @lru_cache(maxsize=1)
 def get_model():
-    '''
-    모델 로드 테스트용
-    print(f"MODEL_PATH = {MODEL_PATH}")
-    print(f"exists = {MODEL_PATH.exists()}")
-    '''
+    ''' 모델 로드 '''
+    # 모델 로드 테스트용
+    # print(f"MODEL_PATH = {MODEL_PATH}")
+    # print(f"exists = {MODEL_PATH.exists()}")
 
-    if not MODEL_PATH.exists():
+    if not MODEL_PATH.exists(): # 모델이 경로에 없음
         print("model load failed: path does not exist")
         return None
-
+    
     try:
         model = tf.keras.models.load_model(str(MODEL_PATH))
-        print("모델 로드 성공")
-        print("모델 입력형 =", model.input_shape)
-        print("모델 출력형 =", model.output_shape)
+        # print("모델 로드 성공")
+        # print("모델 입력형 =", model.input_shape)
+        # print("모델 출력형 =", model.output_shape)
         return model
     except Exception as e:
         print(f"모델 로드 실패: {type(e).__name__}: {e}")
@@ -34,6 +33,7 @@ def get_model():
     
 @lru_cache(maxsize=1)
 def get_embedding_model():
+    '''임베딩 모델 불러오기'''
     model = get_model()
     if model is None:
         return None
@@ -49,11 +49,8 @@ def get_embedding_model():
     
 @lru_cache(maxsize=1)
 def get_healthy_reference():
-    if not HEALTHY_REF_JSON_PATH.exists():
-        print("healthy ref json not found")
-        return None
-
-    if not HEALTHY_REF_NPZ_PATH.exists():
+    '''정상 기침 기준 파일 불러오기'''
+    if not HEALTHY_REF_NPZ_PATH.exists(): # 기준 파일이 없으면 에러
         print("healthy ref npz not found")
         return None
 
@@ -70,10 +67,10 @@ def get_healthy_reference():
             "meta": meta,
         }
 
-        print("healthy reference 로드 성공")
-        print("mean shape =", ref["mean"].shape)
-        print("inv_cov shape =", ref["inv_cov"].shape)
-        print("ref_distances shape =", ref["ref_distances"].shape)
+        #print("healthy reference 로드 성공")
+        #print("mean shape =", ref["mean"].shape)
+        #print("inv_cov shape =", ref["inv_cov"].shape)
+        #print("ref_distances shape =", ref["ref_distances"].shape)
         return ref
 
     except Exception as e:

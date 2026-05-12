@@ -16,8 +16,9 @@ def debug_print(*args):
     if DEBUG:
         print(*args)
 
-# 음성파일의 형식을 ffmpeg로 분석
 def probe_audio(file_path : str) -> dict:
+    ''' 음성파일의 형식을 ffmpeg로 분석 '''
+    # ffprobe 를 사용해 파일을 분석
     cmd = [
         "ffprobe",
         "-v","error",
@@ -31,22 +32,23 @@ def probe_audio(file_path : str) -> dict:
     # cmd 명령어(위에 내용) 실행 결과 저장
     result = subprocess.run(cmd, capture_output=True, text=True)
 
-    if result.returncode != 0:
+    if result.returncode != 0: # 분석 실패, 에러 리턴
         raise RuntimeError(f"ffprobe failed: {result.stderr.strip()}")
 
     try:
-        data = json.loads(result.stdout)
+        data = json.loads(result.stdout) # ffprobe 결과를 저장
     except json.JSONDecodeError as e:
         raise RuntimeError(f"ffprobe json parse failed: {e}")
 
-    streams = data.get("streams", [])
+    streams = data.get("streams", []) # 분석 내역에 stream 이 있는지 확인
     if not streams:
         raise RuntimeError("오디오 스트림이 없음")
 
     return data
 
-# 업로드 음성 전처리
 def convert_audio_to_wav(input_path: str, output_path: str) -> str:
+    ''' 업로드 음성 전처리 '''
+    # ffmpeg 로 1채널, 샘플레이트 16000Hz, pcm_s16le 코덱, output_path 에 wav 형식으로 변환 후 저장
     cmd = [
         "ffmpeg",
         "-y",
@@ -62,12 +64,12 @@ def convert_audio_to_wav(input_path: str, output_path: str) -> str:
         raise RuntimeError(f"ffmpeg failed:{result.stderr}")
     return output_path
 
-# 변환된 음성 파일 검증
 def validate_audio(audio_info:dict, min_duration: float = 1.0) -> dict:
+    ''' 변환된 음성 파일 검증 '''
     try:
         streams = audio_info["streams"]
         if not streams:
-            return {"ok":False, "reason":"audio_stream_not_found"}
+            return {"ok":False, "reason":"오디오 스트림이 없음"}
 
         stream = streams[0]
         duration = float(audio_info["format"]["duration"])
@@ -77,7 +79,7 @@ def validate_audio(audio_info:dict, min_duration: float = 1.0) -> dict:
 
     except Exception:   # 음성파일 여부 검증
         return {"ok":False, "reason":"unknown_audio_format"}
-    if codec_name != "pcm_s16le":    # ?
+    if codec_name != "pcm_s16le":    # 코덱 pcm_s16le 인지 검증
         return {"ok":False, "reason":"invalid_codec"}
     if sample_rate != 16000:    # 샘플레이트 검증
         return {"ok": False, "reason": "invalid_sample_rate"}
@@ -108,10 +110,8 @@ MERGE_GAP_SEC = 0.15
 MERGE_GAP_FRAMES = int(MERGE_GAP_SEC / (EVENT_HOP_MS / 1000.0))
 MAX_EVENTS_PER_FILE = 3
 
-# 길이 맞추기 (전처리)
 def fix_length_1p5s(y: np.ndarray, target_len: int) -> np.ndarray:
     """
-    reference 코드와 맞춤:
     길면 가운데 기준으로 1.5초 crop
     짧으면 뒤에 0 padding
     """
@@ -121,12 +121,15 @@ def fix_length_1p5s(y: np.ndarray, target_len: int) -> np.ndarray:
     pad = target_len - len(y)
     return np.pad(y, (0, pad), mode="constant")
 
-# RMS 기반 기침 이벤트 구간 탐지
 def detect_cough_events_rms(
     y: np.ndarray,
     k_std: float = K_STD,
     max_events_per_file: int = MAX_EVENTS_PER_FILE,
 ) -> List[Tuple[int, int]]:
+    ''' 
+    RMS(현재 구간의 평균적인 소리 세기) 기반 기침 이벤트 구간 탐지
+    오디오 전체중, 에너지가 큰 구간(기침)을 찾음
+    '''
     if y is None or len(y) < EVENT_FRAME_LEN:
         return []
 
@@ -189,7 +192,6 @@ def detect_cough_events_rms(
     
     return [(s, e) for _, s, e in scored[:max_events_per_file]]
 
-# 스펙트럼 변환
 def wav_to_log_spec_tensor(
     wav_1p5: np.ndarray,
     n_fft: int = N_FFT,
@@ -197,7 +199,7 @@ def wav_to_log_spec_tensor(
     target_hw: Tuple[int, int] = TARGET_HW,
 ) -> np.ndarray:
     """
-    reference 코드 맞춤:
+    오디오 파형을 2차원 이미지 데이터로 변환
     stft -> abs -> log(x + 1e-6)
     최종 shape: (90, 513)
     """
@@ -211,8 +213,8 @@ def wav_to_log_spec_tensor(
         center=False,
     )
 
-    spec = np.abs(stft)
-    spec = np.log(spec + 1e-6).astype(np.float32)
+    spec = np.abs(stft) # 주파수의 크기만 가져옴
+    spec = np.log(spec + 1e-6).astype(np.float32) # 값의 차이(저음/고음)가 너무 크지 않도록 조절
 
     # librosa 결과는 (freq, time) 이므로 (time, freq)로 전치
     spec = spec.T
@@ -224,31 +226,28 @@ def wav_to_log_spec_tensor(
 
     if cur_t < target_frames:
         spec = np.pad(spec, ((0, target_frames - cur_t), (0, 0)), mode="constant")
-
     if cur_f < target_bins:
         spec = np.pad(spec, ((0, 0), (0, target_bins - cur_f)), mode="constant")
 
     return spec.astype(np.float32)
 
-# 모델 입력 변환
 def make_model_input(spec: np.ndarray) -> np.ndarray:
-    x = np.expand_dims(spec, axis=-1)   # (90, 513, 1)
-    x = np.expand_dims(x, axis=0)       # (1, 90, 513, 1)
+    '''모델 입력이 가능한 형태로 변환'''
+    x = np.expand_dims(spec, axis=-1)   # (90, 513, 1) 맨뒤에 차원 추가
+    x = np.expand_dims(x, axis=0)       # (1, 90, 513, 1) 맨앞에 차원 추가
     return x.astype(np.float32)
 
-# 최종 전처리
 def preprocess_for_model(
     wav_path: str,
     target_sec: float = TARGET_SEC,
     sr: int = TARGET_SR,
     target_hw: Tuple[int, int] = TARGET_HW,
 ) -> np.ndarray:
-    
-    audio, _ = librosa.load(wav_path, sr=sr, mono=True)
+    ''' 모델 입력용 전처리 '''
+    audio, _ = librosa.load(wav_path, sr=sr, mono=True) # wav 파일 읽기
     target_len = int(sr * target_sec)
 
-    # 기침 이벤트 탐지
-    events = detect_cough_events_rms(audio)
+    events = detect_cough_events_rms(audio) # 기침 이벤트 탐지
 
     # 이벤트가 있으면 가장 강한 이벤트 사용, 없으면 전체 오디오 사용
     if events:
@@ -259,8 +258,7 @@ def preprocess_for_model(
         audio_seg = audio
         print("event detected: none -> fallback to full audio")
 
-    # 1.5초 길이 맞춤 (가운데 crop / 뒤 padding)
-    audio_fixed = fix_length_1p5s(audio_seg, target_len)
+    audio_fixed = fix_length_1p5s(audio_seg, target_len) # 1.5초 길이 맞추기
 
     # STFT(abs) -> log(x + 1e-6)
     spec = wav_to_log_spec_tensor(

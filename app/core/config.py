@@ -4,8 +4,8 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent.parent 
 DATA_DIR = BASE_DIR / "app" / "data"
 
-UPLOAD_DIR = DATA_DIR / "uploads"  # 원본 파일 저장 위치
-CONVERTED_DIR = DATA_DIR / "converted"  # 변환 파일 저장 위치
+UPLOAD_DIR = DATA_DIR / "uploads"  # 원본 음성 저장 위치
+CONVERTED_DIR = DATA_DIR / "converted"  # 전처리 음성 저장 위치
 
 DB_DIR = BASE_DIR / "app" / "db"
 DB_PATH = DB_DIR / "anima.db"
