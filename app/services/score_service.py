@@ -1,12 +1,7 @@
-# app/services/score_service.py
-
 from __future__ import annotations
-
-import math
 from typing import Any
-
 import numpy as np
-
+import math
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
     try:
@@ -16,10 +11,8 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
     except (TypeError, ValueError):
         return default
 
-
 def _clamp(value: float, minimum: float = 0.0, maximum: float = 1.0) -> float:
     return max(minimum, min(value, maximum))
-
 
 def calculate_snr_db(audio: np.ndarray, silence_threshold: float = 0.01) -> float:
     """

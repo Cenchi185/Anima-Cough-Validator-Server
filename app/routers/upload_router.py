@@ -2,7 +2,7 @@ from pathlib import Path
 import uuid
 import librosa
 
-from app.core.config import UPLOAD_DIR, CONVERTED_DIR, MIN_DURATION, COUGH_THRESHOLD
+from app.core.config import UPLOAD_DIR, CONVERTED_DIR, MIN_DURATION, COUGH_THRESHOLD, TARGET_SR
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from app.services.audio_service import (
     probe_audio,
@@ -100,13 +100,16 @@ async def upload_file(file: UploadFile = File(...)): # 업로드 파일을 file 
 
         # quality score(녹음 품질 점수) 계산
         try:
-            audio, sr = librosa.load(str(wav_path), sr=None, mono=True) # 변환된 wav 파일 읽어오기
+            audio, sr = librosa.load(str(wav_path), sr=TARGET_SR, mono=True) # 변환된 wav 파일 읽어오기
 
             quality_result = calculate_quality_score(
                 audio=audio,
                 sample_rate=sr,
                 duration_sec=validation.get("duration"),
             )
+
+            x = preprocess_for_model(audio=audio, sr=sr)
+
         except Exception as e:
             print("calculate_quality_score error =", repr(e))
             quality_result = {
@@ -120,7 +123,6 @@ async def upload_file(file: UploadFile = File(...)): # 업로드 파일을 file 
         quality_score = quality_result["quality_score"]
         quality_flag = quality_result["quality_flag"]
 
-        x = preprocess_for_model(str(wav_path)) # 모델 입력 파라미터 전처리
         prediction = predict(x) 
 
         # 최종 점수

@@ -32,21 +32,23 @@ def get_model():
         return None
     
 @lru_cache(maxsize=1)
-def get_embedding_model():
-    '''임베딩 모델 불러오기'''
+def get_joint_model():
     model = get_model()
     if model is None:
         return None
 
     try:
         emb_layer = model.get_layer("embedding")
-        emb_model = tf.keras.Model(inputs=model.input, outputs=emb_layer.output)
-        print("embedding model 생성 성공: layer=embedding (pre-ReLU)")
-        return emb_model
+        joint_model = tf.keras.Model(
+            inputs=model.input,
+            outputs=[model.output, emb_layer.output]
+        )
+        print("joint model 생성 성공: output + embedding")
+        return joint_model
     except Exception as e:
-        print(f"embedding model 생성 실패: {type(e).__name__}: {e}")
+        print(f"joint model 생성 실패: {type(e).__name__}: {e}")
         return None
-    
+
 @lru_cache(maxsize=1)
 def get_healthy_reference():
     '''정상 기침 기준 파일 불러오기'''

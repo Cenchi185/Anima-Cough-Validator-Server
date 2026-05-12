@@ -238,13 +238,18 @@ def make_model_input(spec: np.ndarray) -> np.ndarray:
     return x.astype(np.float32)
 
 def preprocess_for_model(
-    wav_path: str,
+    wav_path: str | None = None,
+    audio : np.ndarray | None =None,
     target_sec: float = TARGET_SEC,
     sr: int = TARGET_SR,
     target_hw: Tuple[int, int] = TARGET_HW,
 ) -> np.ndarray:
     ''' 모델 입력용 전처리 '''
-    audio, _ = librosa.load(wav_path, sr=sr, mono=True) # wav 파일 읽기
+    if audio is None :
+        if wav_path is None :
+            raise ValueError("wav_path 또는 audio 중 하나 필요")
+        audio, _ = librosa.load(wav_path, sr=sr, mono=True) # wav 파일 읽기
+
     target_len = int(sr * target_sec)
 
     events = detect_cough_events_rms(audio) # 기침 이벤트 탐지

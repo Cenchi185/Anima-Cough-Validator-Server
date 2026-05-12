@@ -2,14 +2,13 @@ import numpy as np
 from app.core.config import COUGH_THRESHOLD, DEBUG
 from app.services.model_service import (
     get_model,
-    get_embedding_model,
+    get_joint_model,
     get_healthy_reference,
 )
 
 def debug_print(*args):
     if DEBUG:
         print(*args)
-
 
 def fake_model_predict(x: np.ndarray) -> dict:
     ''' 모델이 없을때 서버가 죽지 않도록 가짜 모델 사용 '''
@@ -81,8 +80,16 @@ def real_model_predict(model, x: np.ndarray) -> dict:
     1단계 - 음성이 기침이 맞는지 검증
     2단계 - 기침의 이상도 측정
     '''
-    y = model.predict(x, verbose=0)
-    prob = float(y[0][0]) if hasattr(y[0], "__len__") else float(y[0])
+    joint_model = get_joint_model()
+
+    if joint_model is None:
+        y = model.predict(x, verbose=0)
+        emb = None
+    else :
+        y, emb = joint_model.predict(x, verbose=0)
+
+    y = np.asarray(y)
+    prob = float(np.squeeze(y))
 
     # 기침 검증 결과, COUFH_THRESHOLD(0.6) 기준으로 기침인지 검증
     result = {
@@ -101,14 +108,13 @@ def real_model_predict(model, x: np.ndarray) -> dict:
         }
         return result
     
-    emb_model = get_embedding_model() # 기존 기침 분류 모델에서 중간 특징값
     ref = get_healthy_reference()   # 정상 기침 기준 데이터 
     
-    if emb_model is None: # 임베딩 모델이 없음
-        debug_print("[STAGE2] skipped: embedding model not available")
+    if emb is None:
+        debug_print("[STAGE2] skipped: embedding not available")
         result["stage2"] = {
             "skipped": True,
-            "reason": "embedding_model_not_available"
+            "reason": "embedding_not_available"
         }
         return result
     
@@ -121,7 +127,6 @@ def real_model_predict(model, x: np.ndarray) -> dict:
         return result
     
     # embedding 추출
-    emb = emb_model.predict(x, verbose=0)
     emb = np.squeeze(emb).astype(np.float32)
     
     # shape 확인
