@@ -27,7 +27,7 @@ def _decide_analysis_status(mr_record: dict) -> str:
 def save_mr_record(
     mr_record: dict,
     user_uuid: Optional[str] = None,
-    local_audio_path: Optional[str] = None,
+    # local_audio_path: Optional[str] = None,
 ) -> dict:
     '''mr_record 를 DB 에 저장하기'''
     record_uuid = str(uuid.uuid4()) # 기록 uuid, 나중에는 사용자의 uuid 로 대체 될 듯?
@@ -84,7 +84,7 @@ def save_mr_record(
                 mr_record.get("report_text"),
                 mr_record.get("model_version", "ANIMA_BEST_1"),
                 mr_record.get("audio_duration_sec"),
-                local_audio_path,
+                None,
                 now,
                 now,
                 now,

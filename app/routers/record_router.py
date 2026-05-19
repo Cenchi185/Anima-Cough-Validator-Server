@@ -150,7 +150,7 @@ def sync_records(payload: SyncRequest):
                         record.report_text,
                         record.model_version,
                         record.audio_duration_sec,
-                        record.local_audio_path,
+                        None,
                         "SYNCED",
                         now,
                         now,

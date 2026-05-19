@@ -170,7 +170,7 @@ async def upload_file(file: UploadFile = File(...)): # 업로드 파일을 file 
         saved_result = save_mr_record(
             mr_record=mr_record,
             user_uuid=None,
-            local_audio_path=str(saved_path),
+            # local_audio_path=str(saved_path), 
         )
 
         # 클라이언트에게 반환할 json
@@ -192,3 +192,5 @@ async def upload_file(file: UploadFile = File(...)): # 업로드 파일을 file 
     
     finally:
         await file.close()
+        safe_unlink(saved_path)
+        safe_unlink(wav_path)
