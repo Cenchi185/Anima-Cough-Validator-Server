@@ -6,8 +6,9 @@ import tensorflow  as tf
 
 from app.core.config import (
     MODEL_PATH,
-    HEALTHY_REF_JSON_PATH,
-    HEALTHY_REF_NPZ_PATH
+    HEALTHY_COV_PATH,
+    HEALTHY_MU_PATH,
+    # HEALTHY_REF_JSON_PATH, HEALTHY_REF_NPZ_PATH
 )
 
 @lru_cache(maxsize=1)
@@ -52,6 +53,60 @@ def get_joint_model():
 @lru_cache(maxsize=1)
 def get_healthy_reference():
     '''정상 기침 기준 파일 불러오기'''
+
+    if not HEALTHY_MU_PATH.exists():
+        print("healthy mu not found")
+        return None
+
+    if not HEALTHY_COV_PATH.exists():
+        print("healthy cov not found")
+        return None
+
+    try:
+        mean = np.load(HEALTHY_MU_PATH).astype(np.float32)
+        cov = np.load(HEALTHY_COV_PATH).astype(np.float32)
+
+        # 공분산 역행렬 생성
+        inv_cov = np.linalg.pinv(cov).astype(np.float32)
+
+        ref = {
+            "mean": mean,
+            "inv_cov": inv_cov,
+
+            # 기존 코드 호환용
+            "cov_reg": cov,
+
+            # 일단 빈 배열
+            "ref_distances": np.array([], dtype=np.float32),
+
+            "meta": {
+                "embedding_dim": int(mean.shape[0]),
+
+                # 기존 값 임시 사용
+                "distance_quantiles": {
+                    "p50": 5.457507610321045,
+                    "p80": 6.583366870880127,
+                    "p90": 7.532338619232178,
+                    "p95": 8.547204971313477,
+                    "p99": 11.11506519317623,
+                    "max": 13.912639617919922,
+                },
+            },
+        }
+
+        print("healthy reference 로드 성공")
+        print("mean shape =", ref["mean"].shape)
+        print("inv_cov shape =", ref["inv_cov"].shape)
+
+        return ref
+
+    except Exception as e:
+        print(f"healthy reference 로드 실패: {type(e).__name__}: {e}")
+        return None
+
+
+    '''
+    # 구버전 기준파일 분석 방법
     if not HEALTHY_REF_NPZ_PATH.exists(): # 기준 파일이 없으면 에러
         print("healthy ref npz not found")
         return None
@@ -78,3 +133,4 @@ def get_healthy_reference():
     except Exception as e:
         print(f"healthy reference 로드 실패: {type(e).__name__}: {e}")
         return None
+    '''

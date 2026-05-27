@@ -12,8 +12,11 @@ DB_PATH = DB_DIR / "anima.db"
 
 MODEL_DIR = BASE_DIR / "models"
 # MODEL_PATH = MODEL_DIR / "savedmodel_best_1to1_embed64"
+MODEL_PATH = MODEL_DIR / "best_stage1_cnn.h5"
+'''
+# 구버전 모델 파일 경로
 MODEL_PATH = MODEL_DIR / "best_1to1_embed64.keras"
-
+'''
 DEBUG = True
 
 # 1단계 기침 검증 모델용 변수
@@ -28,11 +31,17 @@ N_FFT = 1024
 HOP_LENGTH = 256
 N_MELS = 128
 
-COUGH_THRESHOLD = 0.6
+COUGH_THRESHOLD = 0.5
 
 # 2단계 기침 이상도 판정 기준 파일
+HEALTHY_MU_PATH = MODEL_DIR / "healthy_mu.npy"
+HEALTHY_COV_PATH = MODEL_DIR / "healthy_cov.npy"
+
+'''
+# 2단계 기침 이상도 판정 기준 파일 (구버전)
 HEALTHY_REF_JSON_PATH = MODEL_DIR / "healthy_ref_final.json"
 HEALTHY_REF_NPZ_PATH = MODEL_DIR / "healthy_ref_final.npz"
+'''
 
 # 2단계 기침 이상도 판정용 변수
 NORMAL_MAX_LABEL = "normal_range"
