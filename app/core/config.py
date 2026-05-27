@@ -36,6 +36,7 @@ COUGH_THRESHOLD = 0.5
 # 2단계 기침 이상도 판정 기준 파일
 HEALTHY_MU_PATH = MODEL_DIR / "healthy_mu.npy"
 HEALTHY_COV_PATH = MODEL_DIR / "healthy_cov.npy"
+HEALTHY_THRESHOLDS_PATH = MODEL_DIR / "healthy_thresholds.json"
 
 '''
 # 2단계 기침 이상도 판정 기준 파일 (구버전)
