@@ -216,6 +216,12 @@ def wav_to_log_spec_tensor(
     spec = np.abs(stft) # 주파수의 크기만 가져옴
     spec = np.log(spec + 1e-6).astype(np.float32) # 값의 차이(저음/고음)가 너무 크지 않도록 조절
 
+    # z-score 정규화
+    spec_mean = np.mean(spec)
+    spec_std = np.std(spec) + 1e-6
+
+    spec = (spec - spec_mean) / spec_std
+
     # librosa 결과는 (freq, time) 이므로 (time, freq)로 전치
     spec = spec.T
     # reference 코드처럼 앞에서부터 [:90, :513]
@@ -252,6 +258,7 @@ def preprocess_for_model(
 
     target_len = int(sr * target_sec)
 
+    '''
     events = detect_cough_events_rms(audio) # 기침 이벤트 탐지
 
     # 이벤트가 있으면 가장 강한 이벤트 사용, 없으면 전체 오디오 사용
@@ -262,6 +269,9 @@ def preprocess_for_model(
     else:
         audio_seg = audio
         print("event detected: none -> fallback to full audio")
+    '''
+    audio_seg = audio
+    print("event detection bypassed")
 
     audio_fixed = fix_length_1p5s(audio_seg, target_len) # 1.5초 길이 맞추기
 

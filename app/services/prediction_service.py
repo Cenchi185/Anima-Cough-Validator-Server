@@ -39,9 +39,9 @@ def mahalanobis_distance(x: np.ndarray, mean: np.ndarray, inv_cov: np.ndarray) -
 
 def interpret_distance(dist: float, q: dict) -> dict:
     '''
-    p80 이하 → 정상 기침 기준에 가까움
-    p95 이하 → 약간 벗어남
-    p99 이하 → 이상 가능성 높음
+    p50 이하 → 정상 기침 기준에 가까움
+    p75 이하 → 약간 벗어남
+    p90 이하 → 이상 가능성 높음
     p99 초과 → 많이 벗어남
     '''
     if dist <= q["p50"]:
@@ -90,21 +90,7 @@ def real_model_predict(model, x: np.ndarray) -> dict:
 
     y = np.asarray(y)
 
-    debug_print(f"[MODEL INPUT] shape={x.shape}")
-    debug_print(
-        f"[MODEL INPUT STATS] "
-        f"min={x.min():.6f}, "
-        f"max={x.max():.6f}, "
-        f"mean={x.mean():.6f}, "
-        f"std={x.std():.6f}"
-    )
-    debug_print(f"[STAGE1 RAW] y={y}, shape={y.shape}")
-
-    raw_prob = float(np.ravel(y)[0])
-    debug_print(f"[STAGE1 RAW PROB] raw_prob={raw_prob:.10f}")
-    # prob = float(np.squeeze(y))
-    prob = 1.0 - raw_prob
-    debug_print(f"[STAGE1 FINAL PROB] prob={prob:.10f}")
+    prob = float(np.squeeze(y))
 
     # 기침 검증 결과, COUFH_THRESHOLD(0.5) 기준으로 기침인지 검증
     result = {
@@ -113,7 +99,6 @@ def real_model_predict(model, x: np.ndarray) -> dict:
         "input_shape": list(x.shape),
         "model": "best_1to1_embed64.keras"
     }
-    debug_print(f"[STAGE1 RAW] y={y}, shape={y.shape}")
     debug_print(f"[STAGE1] prob={prob:.6f}, threshold={COUGH_THRESHOLD}")
     
     # 기침이 아니면 2단계 분석 생략
