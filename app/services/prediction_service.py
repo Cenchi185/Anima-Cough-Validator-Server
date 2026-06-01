@@ -97,7 +97,7 @@ def real_model_predict(model, x: np.ndarray) -> dict:
         "is_cough": prob >= COUGH_THRESHOLD,
         "prob": prob,
         "input_shape": list(x.shape),
-        "model": "best_1to1_embed64.keras"
+        "model": "best_stage1_cnn.h5"
     }
     debug_print(f"[STAGE1] prob={prob:.6f}, threshold={COUGH_THRESHOLD}")
     

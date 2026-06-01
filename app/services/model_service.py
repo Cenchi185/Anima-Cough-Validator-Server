@@ -9,6 +9,7 @@ from app.core.config import (
     HEALTHY_COV_PATH,
     HEALTHY_MU_PATH,
     HEALTHY_THRESHOLDS_PATH,
+    HEALTHY_COV_INV_PATH,
     # HEALTHY_REF_JSON_PATH, HEALTHY_REF_NPZ_PATH
 )
 
@@ -70,9 +71,7 @@ def get_healthy_reference():
     try:
         mean = np.load(HEALTHY_MU_PATH).astype(np.float32)
         cov = np.load(HEALTHY_COV_PATH).astype(np.float32)
-
-        # 공분산 역행렬 생성
-        inv_cov = np.linalg.pinv(cov).astype(np.float32)
+        inv_cov = np.load(HEALTHY_COV_INV_PATH).astype(np.float32)
 
         with open(HEALTHY_THRESHOLDS_PATH, "r", encoding="utf-8") as f:
             thresholds = json.load(f)

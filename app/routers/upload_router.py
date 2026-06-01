@@ -161,7 +161,7 @@ async def upload_file(file: UploadFile = File(...)): # 업로드 파일을 file 
                 "audio_duration_sec": validation.get("duration"),
                 "reference_dataset": "COUGHVID_HEALTHY",
                 "distance_metric": "MAHALANOBIS",
-                "reference_version": "healthy_ref_final.json",
+                "reference_version": "healthy_thresholds.json",
                 "risk_level": risk_level,
                 "final_score": final_score,
                 "final_label": final_prediction["final_label"],
