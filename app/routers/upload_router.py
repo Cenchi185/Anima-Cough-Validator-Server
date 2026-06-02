@@ -3,7 +3,7 @@ import uuid
 import librosa
 
 from app.core.config import UPLOAD_DIR, CONVERTED_DIR, MIN_DURATION, COUGH_THRESHOLD, TARGET_SR
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from app.services.audio_service import (
     probe_audio,
     convert_audio_to_wav,
@@ -16,6 +16,12 @@ from app.services.score_service import (
     calculate_quality_score,
     calculate_final_score,
     get_final_prediction,
+)
+
+from datetime import datetime
+from app.services.object_storage_service import (
+    build_audio_object_name,
+    upload_file_to_object_storage,
 )
 
 router = APIRouter()
@@ -40,9 +46,15 @@ def map_risk_level(stage2_level: str | None) -> str | None:
     return None
 
 @router.post("/upload")
-async def upload_file(file: UploadFile = File(...)): # 업로드 파일을 file 에 저장
+async def upload_file(
+    file: UploadFile = File(...),
+    user_uuid: str = Form(default="local"),
+):
     ''' 파일 업로드 시작 '''
     file_id = str(uuid.uuid4()) # 고유 파일명(업로드한 음성파일) 생성
+    record_uuid = str(uuid.uuid4())
+    storage_result = None
+    storage_error = None
     quality_fail_reason = None # 분석 실패 이유
 
     original_filename = file.filename   # 원래 파일 이름
@@ -147,8 +159,26 @@ async def upload_file(file: UploadFile = File(...)): # 업로드 파일을 file 
             interpretation = stage2.get("interpretation", {})
             risk_level = map_risk_level(interpretation.get("level")) # 이상도 요약(사용자용)
 
+        try:
+            object_name = build_audio_object_name(
+                user_uuid=user_uuid,
+                record_uuid=record_uuid,
+                suffix=".wav",
+            )
+
+            storage_result = upload_file_to_object_storage(
+                file_path=wav_path,
+                object_name=object_name,
+                content_type="audio/wav",
+            )
+
+        except Exception as e:
+            print("object storage upload error =", repr(e))
+            storage_error = str(e)
+
         # DB 에 저장할 데이터
         mr_record = {
+                "record_uuid": record_uuid,
                 "cough_detected": prediction.get("is_cough"),
                 "cough_confidence": prediction.get("prob"),
                 "cough_threshold": COUGH_THRESHOLD,
@@ -165,6 +195,12 @@ async def upload_file(file: UploadFile = File(...)): # 업로드 파일을 file 
                 "risk_level": risk_level,
                 "final_score": final_score,
                 "final_label": final_prediction["final_label"],
+                "audio_storage_namespace": storage_result["namespace"] if storage_result else None,
+                "audio_storage_bucket": storage_result["bucket"] if storage_result else None,
+                "audio_storage_key": storage_result["object_name"] if storage_result else None,
+                "audio_storage_uploaded_at": datetime.now().isoformat(timespec="seconds") if storage_result else None,
+                "audio_storage_error": storage_error,
+                "consent_to_store": 1,
             }
         
         saved_result = save_mr_record(
@@ -188,6 +224,9 @@ async def upload_file(file: UploadFile = File(...)): # 업로드 파일을 file 
             },
             "mr_record": mr_record,
             "db_saved": saved_result,
+            "stored_audio": storage_result is not None,
+            "storage": storage_result,
+            "storage_error": storage_error,
         }
     
     finally:

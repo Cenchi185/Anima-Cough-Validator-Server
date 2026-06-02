@@ -41,6 +41,13 @@ def init_db() -> None:
 
             audio_duration_sec REAL,
             local_audio_path TEXT,
+                       
+            audio_storage_namespace TEXT,
+            audio_storage_bucket TEXT,
+            audio_storage_key TEXT,
+            audio_storage_uploaded_at TEXT,
+            audio_storage_error TEXT,
+            consent_to_store INTEGER NOT NULL DEFAULT 1,
 
             sync_status TEXT NOT NULL DEFAULT 'LOCAL_ONLY',
             sync_retry_count INTEGER NOT NULL DEFAULT 0,

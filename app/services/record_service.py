@@ -30,7 +30,7 @@ def save_mr_record(
     # local_audio_path: Optional[str] = None,
 ) -> dict:
     '''mr_record 를 DB 에 저장하기'''
-    record_uuid = str(uuid.uuid4()) # 기록 uuid, 나중에는 사용자의 uuid 로 대체 될 듯?
+    record_uuid = mr_record.get("record_uuid") or str(uuid.uuid4()) # 기록 uuid
     now = datetime.now().isoformat(timespec="seconds") # 분석 기록 일자
     analysis_status = _decide_analysis_status(mr_record) # 기침 분석 결과 저장(분석 되었는지 실패했는지)
 
@@ -59,11 +59,17 @@ def save_mr_record(
                 model_version,
                 audio_duration_sec,
                 local_audio_path,
+                audio_storage_namespace,
+                audio_storage_bucket,
+                audio_storage_key,
+                audio_storage_uploaded_at,
+                audio_storage_error,
+                consent_to_store,
                 server_received_at,
                 created_at,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 record_uuid,
@@ -85,6 +91,12 @@ def save_mr_record(
                 mr_record.get("model_version", "ANIMA_BEST_1"),
                 mr_record.get("audio_duration_sec"),
                 None,
+                mr_record.get("audio_storage_namespace"),
+                mr_record.get("audio_storage_bucket"),
+                mr_record.get("audio_storage_key"),
+                mr_record.get("audio_storage_uploaded_at"),
+                mr_record.get("audio_storage_error"),
+                1,
                 now,
                 now,
                 now,

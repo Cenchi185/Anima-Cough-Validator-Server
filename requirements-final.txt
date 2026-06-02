@@ -4,6 +4,7 @@ uvicorn==0.40.0
 
 # 파일 업로드 처리용
 python-multipart==0.0.21
+oci==2.177.0
 
 # 오디오 처리
 numpy==2.4.0
