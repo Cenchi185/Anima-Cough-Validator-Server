@@ -54,15 +54,10 @@ def interpret_distance(dist: float, q: dict) -> dict:
             "level": "borderline",
             "message": "정상 범위에서 다소 벗어날 수 있습니다."
         }
-    elif dist <= q["p90"]:
-        return {
-            "level": "abnormal_high",
-            "message": "이상 가능성이 높습니다."
-        }
     else:
         return {
-            "level": "abnormal_very_high",
-            "message": "정상 기침 기준에서 많이 벗어났습니다."
+            "level": "warning",
+            "message": "정상 기침 기준에서 벗어난 정도가 큽니다."
         }
 
 def predict(x: np.ndarray) -> dict:

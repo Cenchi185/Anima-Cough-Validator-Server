@@ -41,8 +41,8 @@ def map_risk_level(stage2_level: str | None) -> str | None:
         return "GOOD"
     if stage2_level == "borderline":
         return "CAUTION"
-    if stage2_level in ("abnormal_high", "abnormal_very_high"):
-        return "RISK"
+    if stage2_level in ("warning"):
+        return "WARNING"
     return None
 
 @router.post("/upload")
