@@ -27,7 +27,7 @@ def init_db() -> None:
             quality_score REAL,
             quality_fail_reason TEXT,
             final_score REAL,
-            final_label TEXT,
+            final_label TEXT,   
 
             healthy_distance REAL,
             embedding_vector TEXT,
