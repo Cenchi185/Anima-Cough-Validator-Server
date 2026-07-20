@@ -30,6 +30,7 @@ def init_db() -> None:
             final_label TEXT,
 
             healthy_distance REAL,
+            embedding_vector TEXT,
             reference_dataset TEXT DEFAULT 'COUGHVID_HEALTHY',
             distance_metric TEXT DEFAULT 'MAHALANOBIS',
             reference_version TEXT DEFAULT 'healthy_ref_final.json',
