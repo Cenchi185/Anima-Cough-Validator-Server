@@ -146,6 +146,7 @@ async def upload_file(
 
         stage2 = prediction.get("stage2", {}) # 2단계 이상도 판정
         healthy_distance = None # 정상 기침 기준 데이터
+        embedding_vector = None
         risk_level = None # 이상도 요약(사용자용)
 
         model_version = prediction.get("model") # 분석에 사용한 모델
@@ -155,6 +156,10 @@ async def upload_file(
             distance = stage2.get("distance")
             if distance is not None:
                 healthy_distance = float(distance)
+
+            embedding = stage2.get("embedding")
+            if embedding is not None:
+                embedding_vector = embedding
                 
             interpretation = stage2.get("interpretation", {})
             risk_level = map_risk_level(interpretation.get("level")) # 이상도 요약(사용자용)
@@ -187,6 +192,7 @@ async def upload_file(
                 "quality_fail_reason": quality_fail_reason,
                 "report_text": report_text,
                 "healthy_distance": healthy_distance,
+                "embedding_vector": embedding_vector,
                 "model_version": model_version,
                 "audio_duration_sec": validation.get("duration"),
                 "reference_dataset": "COUGHVID_HEALTHY",

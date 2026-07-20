@@ -1,4 +1,5 @@
 import uuid
+import json
 from datetime import datetime
 from typing import Optional
 
@@ -34,6 +35,11 @@ def save_mr_record(
     now = datetime.now().isoformat(timespec="seconds") # 분석 기록 일자
     analysis_status = _decide_analysis_status(mr_record) # 기침 분석 결과 저장(분석 되었는지 실패했는지)
 
+    embedding_vector = mr_record.get("embedding_vector")
+
+    if embedding_vector is not None:
+        embedding_vector = json.dumps(embedding_vector)
+
     with get_connection() as conn: # db 연결 (임시)
         cursor = conn.cursor()
 
@@ -51,6 +57,7 @@ def save_mr_record(
                 final_score,
                 final_label,
                 healthy_distance,
+                embedding_vector,
                 reference_dataset,
                 distance_metric,
                 reference_version,
@@ -69,7 +76,7 @@ def save_mr_record(
                 created_at,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 record_uuid,
@@ -83,6 +90,7 @@ def save_mr_record(
                 mr_record.get("final_score"),
                 mr_record.get("final_label"),
                 mr_record.get("healthy_distance"),
+                embedding_vector,
                 mr_record.get("reference_dataset", "COUGHVID_HEALTHY"),
                 mr_record.get("distance_metric", "MAHALANOBIS"),
                 mr_record.get("reference_version", "healthy_ref_final.json"),

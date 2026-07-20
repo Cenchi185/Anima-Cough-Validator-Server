@@ -153,6 +153,7 @@ def real_model_predict(model, x: np.ndarray) -> dict:
         "skipped": False,
         "embedding_dim": int(ref["meta"]["embedding_dim"]),
         "distance": dist,
+        "embedding": emb.tolist(),
         "quantiles": quantiles,
         "interpretation": interpretation,
     }
