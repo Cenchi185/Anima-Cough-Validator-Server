@@ -5,6 +5,11 @@ __pycache__/
 # virtual environment
 .venv/
 
+# db
+app/db/*.db
+app/db/*.db-shm
+app/db/*.db-wal
+
 # vscode
 .vscode/
 
