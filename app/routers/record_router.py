@@ -75,18 +75,6 @@ def sync_records(payload: SyncRequest):
             "failed": [],
         }
 
-    measured_at = (
-        record.measured_at.isoformat()
-        if record.measured_at is not None
-        else None
-    )
-
-    record_date = (
-        record.record_date.isoformat()
-        if record.record_date is not None
-        else None
-    )
-
     synced_count = 0
     failed = []
     now = _now()
@@ -96,6 +84,18 @@ def sync_records(payload: SyncRequest):
 
         for record in payload.records:
             try:
+                measured_at = (
+                    record.measured_at.isoformat()
+                    if record.measured_at is not None
+                    else None
+                )
+            
+                record_date = (
+                    record.record_date.isoformat()
+                    if record.record_date is not None
+                    else None
+                )
+
                 created_at = record.created_at or now
                 updated_at = record.updated_at or now
 
