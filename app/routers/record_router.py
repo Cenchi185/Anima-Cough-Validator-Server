@@ -1,16 +1,22 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from typing import Optional, List
-from datetime import datetime
+from typing import Optional, List, Literal
+from datetime import datetime, date
 
 from app.db.database import get_connection
 
-router = APIRouter(prefix="/records", tags=["records"])
+import json
 
+router = APIRouter(prefix="/records", tags=["records"])
 
 class SyncRecord(BaseModel):
     record_uuid: str
     user_uuid: Optional[str] = "local"
+    source_device_type: Optional[Literal["APP","WEB","WEARABLE"]] = None
+
+    measured_at: Optional[datetime] = None
+    record_date: Optional[date] = None
+    client_app_version: Optional[str] = None
 
     analysis_status: Optional[str] = None
 
@@ -24,6 +30,8 @@ class SyncRecord(BaseModel):
     quality_fail_reason: Optional[str] = None
 
     healthy_distance: Optional[float] = None
+    embedding_vector: Optional[List[float]] = None
+
     reference_dataset: Optional[str] = "COUGHVID_HEALTHY"
     distance_metric: Optional[str] = "MAHALANOBIS"
     reference_version: Optional[str] = "healthy_ref_final.json"
@@ -67,6 +75,18 @@ def sync_records(payload: SyncRequest):
             "failed": [],
         }
 
+    measured_at = (
+        record.measured_at.isoformat()
+        if record.measured_at is not None
+        else None
+    )
+
+    record_date = (
+        record.record_date.isoformat()
+        if record.record_date is not None
+        else None
+    )
+
     synced_count = 0
     failed = []
     now = _now()
@@ -79,11 +99,20 @@ def sync_records(payload: SyncRequest):
                 created_at = record.created_at or now
                 updated_at = record.updated_at or now
 
+                embedding_vector = None
+
+                if record.embedding_vector is not None:
+                    embedding_vector = json.dumps(record.embedding_vector)
+
                 cursor.execute(
                     """
                     INSERT INTO MRRecord (
                         record_uuid,
                         user_uuid,
+                        source_device_type,
+                        measured_at,
+                        record_date,
+                        client_app_version,
                         analysis_status,
                         cough_detected,
                         cough_confidence,
@@ -93,6 +122,7 @@ def sync_records(payload: SyncRequest):
                         final_label,
                         quality_fail_reason,
                         healthy_distance,
+                        embedding_vector,
                         reference_dataset,
                         distance_metric,
                         reference_version,
@@ -107,9 +137,13 @@ def sync_records(payload: SyncRequest):
                         created_at,
                         updated_at
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(record_uuid) DO UPDATE SET
                         user_uuid = excluded.user_uuid,
+                        source_device_type = excluded.source_device_type,
+                        measured_at = excluded.measured_at,
+                        record_date = excluded.record_date,
+                        client_app_version = excluded.client_app_version,
                         analysis_status = excluded.analysis_status,
                         cough_detected = excluded.cough_detected,
                         cough_confidence = excluded.cough_confidence,
@@ -119,6 +153,7 @@ def sync_records(payload: SyncRequest):
                         final_label = excluded.final_label,
                         quality_fail_reason = excluded.quality_fail_reason,
                         healthy_distance = excluded.healthy_distance,
+                        embedding_vector = excluded.embedding_vector,
                         reference_dataset = excluded.reference_dataset,
                         distance_metric = excluded.distance_metric,
                         reference_version = excluded.reference_version,
@@ -134,6 +169,10 @@ def sync_records(payload: SyncRequest):
                     (
                         record.record_uuid,
                         record.user_uuid or payload.user_uuid,
+                        record.source_device_type,
+                        measured_at,
+                        record_date,
+                        record.client_app_version,
                         record.analysis_status or "ANALYZED",
                         _to_int_bool(record.cough_detected),
                         record.cough_confidence,
@@ -143,6 +182,7 @@ def sync_records(payload: SyncRequest):
                         record.final_label,
                         record.quality_fail_reason,
                         record.healthy_distance,
+                        embedding_vector,
                         record.reference_dataset,
                         record.distance_metric,
                         record.reference_version,
@@ -174,7 +214,6 @@ def sync_records(payload: SyncRequest):
         "synced_count": synced_count,
         "failed": failed,
     }
-
 
 @router.get("")
 def get_records(

@@ -12,11 +12,66 @@ def init_db() -> None:
         cursor = conn.cursor()
 
         cursor.execute("""
+        CREATE TABLE IF NOT EXISTS User (
+            user_uuid TEXT PRIMARY KEY,
+
+            device_os TEXT,
+
+            user_id TEXT UNIQUE,
+            password_hash TEXT,
+            recovery_email TEXT,
+            account_linked_at TEXT,
+
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS UserProfile (
+            user_uuid TEXT PRIMARY KEY NOT NULL,
+        
+            age INTEGER,
+            gender TEXT,
+            country TEXT,
+            region TEXT,
+            language TEXT,
+            visit_purpose TEXT,
+            first_visit INTEGER,
+        
+            smoking TEXT,
+            allergy INTEGER,
+            allergy_detail TEXT,
+            dust_exposure INTEGER,
+            has_pet INTEGER,
+            living_environment TEXT,
+        
+            symptoms TEXT,
+            symptom_duration TEXT,
+            respiratory_conditions TEXT,
+            recent_infection INTEGER,
+            medication TEXT,
+            note TEXT,
+        
+            consented_at TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        
+            FOREIGN KEY (user_uuid) REFERENCES User(user_uuid)
+        )
+        """)
+
+        cursor.execute("""
         CREATE TABLE IF NOT EXISTS MRRecord (
             record_id INTEGER PRIMARY KEY AUTOINCREMENT,
 
             record_uuid TEXT UNIQUE NOT NULL,
             user_uuid TEXT NOT NULL DEFAULT 'local',
+            source_device_type TEXT,
+
+            measured_at TEXT,
+            record_date TEXT,
+            client_app_version TEXT,
 
             analysis_status TEXT NOT NULL DEFAULT 'PENDING',
 
@@ -60,6 +115,33 @@ def init_db() -> None:
             updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
         """)
+
+        cursor.execute("PRAGMA table_info(MRRecord)")
+        columns = {row["name"] for row in cursor.fetchall()}
+
+        if "source_device_type" not in columns:
+            cursor.execute("""
+                ALTER TABLE MRRecord
+                ADD COLUMN source_device_type TEXT
+            """)
+
+        if "measured_at" not in columns:
+            cursor.execute("""
+                ALTER TABLE MRRecord
+                ADD COLUMN measured_at TEXT
+            """)
+        
+        if "record_date" not in columns:
+            cursor.execute("""
+                ALTER TABLE MRRecord
+                ADD COLUMN record_date TEXT
+            """)
+        
+        if "client_app_version" not in columns:
+            cursor.execute("""
+                ALTER TABLE MRRecord
+                ADD COLUMN client_app_version TEXT
+            """)
 
         conn.commit()
 

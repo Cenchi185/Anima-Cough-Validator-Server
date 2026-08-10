@@ -48,6 +48,10 @@ def save_mr_record(
             INSERT INTO MRRecord (
                 record_uuid,
                 user_uuid,
+                source_device_type,
+                measured_at,
+                record_date,
+                client_app_version,
                 analysis_status,
                 cough_detected,
                 cough_confidence,
@@ -76,11 +80,15 @@ def save_mr_record(
                 created_at,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 record_uuid,
                 user_uuid or "local",
+                mr_record.get("source_device_type"),
+                mr_record.get("measured_at"),
+                mr_record.get("record_date"),
+                mr_record.get("client_app_version"),
                 analysis_status,
                 _to_int_bool(mr_record.get("cough_detected")),
                 mr_record.get("cough_confidence"),

@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 import uuid
 import librosa
 
@@ -23,6 +24,7 @@ from app.services.object_storage_service import (
     build_audio_object_name,
     upload_file_to_object_storage,
 )
+from app.services.user_service import ensure_user_exists
 
 router = APIRouter()
 
@@ -49,6 +51,11 @@ def map_risk_level(stage2_level: str | None) -> str | None:
 async def upload_file(
     file: UploadFile = File(...),
     user_uuid: str = Form(default="local"),
+    device_os: Literal["ANDROID", "IOS", "WEB"] | None = Form(default=None),
+    source_device_type: Literal["APP", "WEB", "WEARABLE"] = Form(default="APP"),
+    measured_at: str | None = Form(default=None),
+    record_date: str | None = Form(default=None),
+    client_app_version: str | None = Form(default=None),
 ):
     ''' 파일 업로드 시작 '''
     file_id = str(uuid.uuid4()) # 고유 파일명(업로드한 음성파일) 생성
@@ -184,6 +191,10 @@ async def upload_file(
         # DB 에 저장할 데이터
         mr_record = {
                 "record_uuid": record_uuid,
+                "source_device_type": source_device_type,
+                "measured_at": measured_at,
+                "record_date": record_date,
+                "client_app_version": client_app_version,
                 "cough_detected": prediction.get("is_cough"),
                 "cough_confidence": prediction.get("prob"),
                 "cough_threshold": COUGH_THRESHOLD,
@@ -208,10 +219,15 @@ async def upload_file(
                 "audio_storage_error": storage_error,
                 "consent_to_store": 1,
             }
+
+        ensure_user_exists(
+            user_uuid=user_uuid,
+            device_os=device_os,
+        )
         
         saved_result = save_mr_record(
             mr_record=mr_record,
-            user_uuid=None,
+            user_uuid=user_uuid,
             # local_audio_path=str(saved_path), 
         )
 
