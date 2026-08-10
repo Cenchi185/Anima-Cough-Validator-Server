@@ -43,7 +43,7 @@ def map_risk_level(stage2_level: str | None) -> str | None:
         return "GOOD"
     if stage2_level == "borderline":
         return "CAUTION"
-    if stage2_level in ("warning"):
+    if stage2_level == "warning":
         return "WARNING"
     return None
 

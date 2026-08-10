@@ -29,8 +29,8 @@ class UserProfileRequest(BaseModel):
     living_environment: Optional[Literal["urban","suburban","rural","industrial","other"]] = None
 
     symptoms: Optional[List[Literal["cough","sputum","runny_nose","sore_throat","dyspnea","fever"]]] = None
-    symptom_duration: Optional[Literal["asthma","copd","rhinitis","sinusitis","bronchitis","tuberculosis"]] = None
-    respiratory_conditions: Optional[List[str]] = None
+    symptom_duration: Optional[Literal["none","under_1w","1_2w","2_4w","over_4w"]] = None
+    respiratory_conditions: Optional[List[Literal["asthma","copd","rhinitis","sinusitis","bronchitis","tuberculosis"]]] = None
     recent_infection: Optional[bool] = None
     medication: Optional[str] = None
     note: Optional[str] = None
