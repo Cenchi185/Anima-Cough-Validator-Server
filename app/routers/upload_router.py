@@ -118,30 +118,59 @@ async def upload_file(
                                 )
 
         # quality score(녹음 품질 점수) 계산
+        # 변환된 wav 파일 읽기
         try:
-            audio, sr = librosa.load(str(wav_path), sr=TARGET_SR, mono=True) # 변환된 wav 파일 읽어오기
+            audio, sr = librosa.load(
+                str(wav_path),
+                sr=TARGET_SR,
+                mono=True,
+            )
 
+        except Exception as e:
+            print("librosa.load error =", repr(e))
+
+            raise HTTPException(
+                status_code=500,
+                detail="오디오 파일을 읽는 중 오류가 발생했습니다.",
+            )
+
+        # quality score(녹음 품질 점수) 계산
+        try:
             quality_result = calculate_quality_score(
                 audio=audio,
                 sample_rate=sr,
                 duration_sec=validation.get("duration"),
             )
 
-            x = preprocess_for_model(audio=audio, sr=sr)
-
         except Exception as e:
             print("calculate_quality_score error =", repr(e))
+
             quality_result = {
                 "quality_score": 0.0,
                 "quality_flag": "LOW",
                 "message": "녹음 품질을 평가하는 중 문제가 발생했습니다.",
                 "details": {},
             }
-            # quality_fail_reason = "quality_score_calculation_failed"
 
         quality_score = quality_result["quality_score"]
         quality_flag = quality_result["quality_flag"]
 
+        # AI 모델 입력용 전처리
+        try:
+            x = preprocess_for_model(
+                audio=audio,
+                sr=sr,
+            )
+
+        except Exception as e:
+            print("preprocess_for_model error =", repr(e))
+
+            raise HTTPException(
+                status_code=500,
+                detail="오디오 전처리 중 오류가 발생했습니다.",
+            )
+
+        # 모델 예측
         prediction = predict(x) 
 
         # 최종 점수
