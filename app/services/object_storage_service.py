@@ -3,17 +3,23 @@ from pathlib import Path
 from datetime import datetime, timezone
 import mimetypes
 import oci
+import os
 
 BUCKET_NAME = "anima-audio-storage"
 
 @lru_cache(maxsize=1)
 def get_object_storage_client():
-    signer = oci.auth.signers.InstancePrincipalsSecurityTokenSigner()
+    auth_mode = os.getenv("OCI_AUTH_MODE", "instance_principal")
 
-    client = oci.object_storage.ObjectStorageClient(
-        config={},
-        signer=signer,
-    )
+    if auth_mode == "config":
+        config = oci.config.from_file()
+        client = oci.object_storage.ObjectStorageClient(config)
+    else:
+        signer = oci.auth.signers.InstancePrincipalsSecurityTokenSigner()
+        client = oci.object_storage.ObjectStorageClient(
+            config={},
+            signer=signer,
+        )
 
     namespace = client.get_namespace().data
     return client, namespace
