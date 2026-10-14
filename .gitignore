@@ -22,3 +22,9 @@ app/db/*.db-wal
 # uploaded / converted audio files
 app/data/uploads/
 app/data/converted/
+# Local SQLite databases
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
