@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Literal
 import uuid
 import librosa
+import os
 
 from app.core.config import UPLOAD_DIR, CONVERTED_DIR, MIN_DURATION, COUGH_THRESHOLD, TARGET_SR
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
@@ -200,22 +201,28 @@ async def upload_file(
             interpretation = stage2.get("interpretation", {})
             risk_level = map_risk_level(interpretation.get("level")) # 이상도 요약(사용자용)
 
-        try:
-            object_name = build_audio_object_name(
-                user_uuid=user_uuid,
-                record_uuid=record_uuid,
-                suffix=".wav",
-            )
+        enable_oci_upload = os.getenv("ENABLE_OCI_UPLOAD", "true").lower() == "true"
+        print(f"[DEBUG] OCI 업로드 활성화: {enable_oci_upload}", flush=True)
 
-            storage_result = upload_file_to_object_storage(
-                file_path=wav_path,
-                object_name=object_name,
-                content_type="audio/wav",
-            )
+        if enable_oci_upload:
+            try:
+                object_name = build_audio_object_name(
+                    user_uuid=user_uuid,
+                    record_uuid=record_uuid,
+                    suffix=".wav",
+                )
 
-        except Exception as e:
-            print("object storage upload error =", repr(e))
-            storage_error = str(e)
+                storage_result = upload_file_to_object_storage(
+                    file_path=wav_path,
+                    object_name=object_name,
+                    content_type="audio/wav",
+                )
+
+            except Exception as e:
+                print("object storage upload error =", repr(e))
+                storage_error = str(e)
+        else:
+            print("OCI Object Storage 업로드 생략 (로컬 테스트)")
 
         # DB 에 저장할 데이터
         mr_record = {
@@ -249,16 +256,24 @@ async def upload_file(
                 "consent_to_store": 1,
             }
 
+        print("[DEBUG] 사용자 확인 시작", flush=True)
+
         ensure_user_exists(
             user_uuid=user_uuid,
             device_os=device_os,
         )
-        
+
+        print("[DEBUG] 사용자 확인 완료", flush=True)
+
+        print("[DEBUG] DB 저장 시작", flush=True)
+
         saved_result = save_mr_record(
             mr_record=mr_record,
             user_uuid=user_uuid,
             # local_audio_path=str(saved_path), 
         )
+        
+        print("[DEBUG] DB 저장 완료", flush=True)
 
         # 클라이언트에게 반환할 json
         return {

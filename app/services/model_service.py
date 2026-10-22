@@ -25,14 +25,24 @@ def get_model():
         return None
     
     try:
-        model = tf.keras.models.load_model(str(MODEL_PATH))
-        # print("모델 로드 성공")
-        # print("모델 입력형 =", model.input_shape)
-        # print("모델 출력형 =", model.output_shape)
+        model = tf.keras.models.load_model(
+            str(MODEL_PATH),
+            compile=False
+        )
         return model
+    
     except Exception as e:
-        print(f"모델 로드 실패: {type(e).__name__}: {e}")
-        return None
+        print(f"기본 모델 로딩 실패: {e}")
+    
+        try:
+            from app.services.model_architecture import build_stage1_cnn
+    
+            model = build_stage1_cnn()
+            model.load_weights(str(MODEL_PATH))
+            return model
+        except Exception as fallback_error:
+            print(f"가중치 로딩 실패: {fallback_error}")
+            return None
     
 @lru_cache(maxsize=1)
 def get_joint_model():
