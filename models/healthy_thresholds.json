@@ -1,4 +1,6 @@
 {
+  "_updated": "2026-11-25",
+  "_note": "구간 경계 상향: 양호 < p75 <= 주의 < p90 <= 경고 (기존 p50/p75). 기준 분포(mu, cov_inv, 백분위수)는 stage2_rms와 같음",
   "p25": 3.8179698244764615,
   "p50": 4.790110147588496,
   "p75": 7.041299176662441,
@@ -10,24 +12,19 @@
   "regularization": 0.001,
   "risk_zones": {
     "normal": {
-      "max": 4.790110147588496,
+      "max": 7.041299176662441,
       "label": "양호",
       "color": "green"
     },
     "caution": {
-      "max": 7.041299176662441,
+      "max": 9.0137376282851,
       "label": "주의",
       "color": "yellow"
     },
     "warning": {
-      "max": 9.0137376282851,
+      "max": null,
       "label": "경고",
       "color": "orange"
-    },
-    "danger": {
-      "max": null,
-      "label": "위험",
-      "color": "red"
     }
   }
 }

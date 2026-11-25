@@ -39,24 +39,24 @@ def mahalanobis_distance(x: np.ndarray, mean: np.ndarray, inv_cov: np.ndarray) -
 
 def interpret_distance(dist: float, q: dict) -> dict:
     """
-    p75 이하 → 양호
-    p75 초과, p90 이하 → 주의
-    p90 초과 → 경고
+    이탈도 < p75 → 양호
+    p75 <= 이탈도 < p90 → 주의
+    p90 <= 이탈도 → 경고
     """
-    if dist <= q["p75"]:
+    if dist < q["p75"]:
         return {
             "level": "normal_range",
-            "message": "정상 기침 기준에 비교적 가깝습니다."
+            "message": "정상 기침 기준에 비교적 가깝습니다.",
         }
-    elif dist <= q["p90"]:
+    elif dist < q["p90"]:
         return {
             "level": "borderline",
-            "message": "정상 범위에서 다소 벗어날 수 있습니다."
+            "message": "정상 범위에서 다소 벗어날 수 있습니다.",
         }
     else:
         return {
             "level": "warning",
-            "message": "정상 기침 기준에서 벗어난 정도가 큽니다."
+            "message": "정상 기침 기준에서 벗어난 정도가 큽니다.",
         }
 
 def predict(x: np.ndarray) -> dict:
