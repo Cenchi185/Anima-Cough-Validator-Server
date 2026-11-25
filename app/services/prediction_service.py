@@ -83,9 +83,11 @@ def real_model_predict(model, x: np.ndarray) -> dict:
     else :
         y, emb = joint_model.predict(x, verbose=0)
 
-    y = np.asarray(y)
-
-    prob = float(np.squeeze(y))
+    scores = np.asarray(y).reshape(x.shape[0])
+    best_index = int(np.argmax(scores))
+    prob = float(scores[best_index])
+    if emb is not None:
+        emb = np.asarray(emb)[best_index]
 
     # 기침 검증 결과, COUFH_THRESHOLD(0.5) 기준으로 기침인지 검증
     result = {

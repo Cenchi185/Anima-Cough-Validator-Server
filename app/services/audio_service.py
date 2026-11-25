@@ -1,6 +1,7 @@
 from typing import Tuple,List
 import json, subprocess, librosa
 import numpy as np
+import tensorflow as tf
 
 from app.core.config import (
     DEBUG,
@@ -103,10 +104,10 @@ EVENT_HOP_MS = 10
 EVENT_FRAME_LEN = int(TARGET_SR * (EVENT_FRAME_MS / 1000.0))
 EVENT_HOP_LEN = int(TARGET_SR * (EVENT_HOP_MS / 1000.0))
 
-K_STD = 1.0
-MIN_EVENT_SEC = 0.05
+K_STD = 1.5
+MIN_EVENT_SEC = 0.20
 MIN_EVENT_FRAMES = int(MIN_EVENT_SEC / (EVENT_HOP_MS / 1000.0))
-MERGE_GAP_SEC = 0.15
+MERGE_GAP_SEC = 0.10
 MERGE_GAP_FRAMES = int(MERGE_GAP_SEC / (EVENT_HOP_MS / 1000.0))
 MAX_EVENTS_PER_FILE = 3
 
@@ -205,37 +206,21 @@ def wav_to_log_spec_tensor(
     """
     target_frames, target_bins = target_hw
 
-    stft = librosa.stft(
-        y=wav_1p5.astype(np.float32),
-        n_fft=n_fft,
-        hop_length=hop_length,
-        win_length=n_fft,
-        center=False,
+    stft = tf.signal.stft(
+        tf.convert_to_tensor(wav_1p5, dtype=tf.float32),
+        frame_length=n_fft,
+        frame_step=hop_length,
+        fft_length=n_fft,
+        pad_end=False,
     )
-
-    spec = np.abs(stft) # 주파수의 크기만 가져옴
-    spec = np.log(spec + 1e-6).astype(np.float32) # 값의 차이(저음/고음)가 너무 크지 않도록 조절
-
-    # z-score 정규화
-    spec_mean = np.mean(spec)
-    spec_std = np.std(spec) + 1e-6
-
-    spec = (spec - spec_mean) / spec_std
-
-    # librosa 결과는 (freq, time) 이므로 (time, freq)로 전치
-    spec = spec.T
-    # reference 코드처럼 앞에서부터 [:90, :513]
+    spec = tf.math.log(tf.abs(stft) + 1e-6)
     spec = spec[:target_frames, :target_bins]
+    mean, variance = tf.nn.moments(spec, axes=[0, 1], keepdims=True)
+    spec = ((spec - mean) / (tf.sqrt(variance) + 1e-8)).numpy()
+    pad_frames = max(0, target_frames - spec.shape[0])
+    pad_bins = max(0, target_bins - spec.shape[1])
+    return np.pad(spec, ((0, pad_frames), (0, pad_bins)))
 
-    # 혹시 모자라면 pad
-    cur_t, cur_f = spec.shape
-
-    if cur_t < target_frames:
-        spec = np.pad(spec, ((0, target_frames - cur_t), (0, 0)), mode="constant")
-    if cur_f < target_bins:
-        spec = np.pad(spec, ((0, 0), (0, target_bins - cur_f)), mode="constant")
-
-    return spec.astype(np.float32)
 
 def make_model_input(spec: np.ndarray) -> np.ndarray:
     '''모델 입력이 가능한 형태로 변환'''
@@ -257,34 +242,14 @@ def preprocess_for_model(
         audio, _ = librosa.load(wav_path, sr=sr, mono=True) # wav 파일 읽기
 
     target_len = int(sr * target_sec)
+    events = detect_cough_events_rms(audio) or [(0, len(audio))]
 
-    '''
-    events = detect_cough_events_rms(audio) # 기침 이벤트 탐지
+    inputs = []
+    for start, end in events:
+        clip = fix_length_1p5s(audio[start:end], target_len)
+        spec = wav_to_log_spec_tensor(clip, target_hw=target_hw)
+        inputs.append(make_model_input(spec))
 
-    # 이벤트가 있으면 가장 강한 이벤트 사용, 없으면 전체 오디오 사용
-    if events:
-        start, end = events[0]
-        audio_seg = audio[start:end]
-        print(f"event detected: start={start}, end={end}, len={end-start}")
-    else:
-        audio_seg = audio
-        print("event detected: none -> fallback to full audio")
-    '''
-    audio_seg = audio
-    print("event detection bypassed")
-
-    audio_fixed = fix_length_1p5s(audio_seg, target_len) # 1.5초 길이 맞추기
-
-    # STFT(abs) -> log(x + 1e-6)
-    spec = wav_to_log_spec_tensor(
-        wav_1p5=audio_fixed,
-        n_fft=N_FFT,
-        hop_length=HOP_LENGTH,
-        target_hw=target_hw,
-    )
-
-    debug_print("[SPEC] shape =", spec.shape)
-    x = make_model_input(spec)
+    x = np.concatenate(inputs, axis=0)
     debug_print("[MODEL INPUT] shape =", x.shape)
-    
     return x
